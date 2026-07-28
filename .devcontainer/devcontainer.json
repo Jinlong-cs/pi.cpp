@@ -1,0 +1,27 @@
+{
+  "name": "pi.cpp",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "..",
+    "args": {}
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/pi.cpp,type=bind",
+  "workspaceFolder": "/workspaces/pi.cpp",
+
+  "runArgs": [
+    "--device",
+    "nvidia.com/gpu=all",
+    "--ipc=host",
+    "-v",
+    "${localEnv:HOME}/.local/share:/root/.local/share"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd"
+      ]
+    }
+  }
+}

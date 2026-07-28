@@ -1,0 +1,52 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pi-cpp"
+version = "0.1.0"
+description = "Python bindings and offline runners for the pi.cpp C++ runtime"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "datasets>=2.19",
+  "huggingface-hub>=0.29",
+  "msgpack-numpy>=0.4.8",
+  "numpy>=1.26,<2",
+  "Pillow>=10",
+  "policy-websocket==0.1.0",
+  "rich>=13.9",
+  "sentencepiece>=0.2",
+  "textual>=1.0",
+  "tyro>=0.9",
+]
+
+[project.optional-dependencies]
+lerobot = ["lerobot==0.3.3"]
+libero = [
+  "bddl==1.0.1",
+  "cloudpickle==3.1.2",
+  "easydict==1.9",
+  "future==1.0.0",
+  "gym==0.25.2",
+  "gymnasium==0.29.1",
+  "matplotlib==3.10.9",
+  "mujoco==3.2.3",
+  "PyYAML==6.0.3",
+  "robosuite==1.4.1",
+]
+
+[project.scripts]
+picpp = "pi_cpp.cli:main"
+picpp-tui = "pi_cpp.tui:main"
+
+[tool.scikit-build]
+cmake.version = ">=3.22"
+cmake.args = ["-DPI_CPP_BUILD_PYTHON=ON"]
+wheel.packages = ["python/pi_cpp"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100

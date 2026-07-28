@@ -1,0 +1,53 @@
+name: C++ Build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - eddie/pi_offline_run_pybind
+
+jobs:
+  build:
+    name: Build C++ runtime
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    container:
+      image: nvidia/cuda:12.6.3-devel-ubuntu22.04
+
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            git \
+            wget
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          dpkg -i cuda-keyring_1.1-1_all.deb
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            cmake \
+            g++ \
+            libnvinfer-headers-dev=10.7.0.23-1+cuda12.6 \
+            libnvinfer10=10.7.0.23-1+cuda12.6 \
+            ninja-build \
+            pybind11-dev \
+            python3-dev
+          apt-get clean
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPI_CPP_BUILD_PYTHON=ON \
+            -DTENSORRT_INCLUDE_DIR=/usr/include/x86_64-linux-gnu \
+            -DCUDA_INCLUDE_DIR=/usr/local/cuda/include \
+            -DTENSORRT_LIBRARY=/usr/lib/x86_64-linux-gnu/libnvinfer.so.10 \
+            -DCUDA_RUNTIME_LIBRARY=/usr/local/cuda/lib64/libcudart.so
+
+      - name: Build
+        run: cmake --build build

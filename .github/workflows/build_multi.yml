@@ -1,0 +1,103 @@
+name: Build Docker Image (multi)
+
+on:
+  push:
+    branches: [docker]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: uniflexai/picpp
+
+jobs:
+  build-amd64:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Free disk space
+        run: |
+          df -h
+          docker system prune -af --volumes || true
+          docker buildx prune -af || true
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - run: git lfs checkout
+
+      - run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}-amd64
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-amd64
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-amd64,mode=max
+
+  build-arm64:
+    runs-on: ubuntu-22.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - run: git lfs checkout
+
+      - run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}-arm64
+          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-arm64
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache-arm64,mode=max
+
+  merge-manifest:
+    runs-on: ubuntu-22.04
+    needs:
+      - build-amd64
+      - build-arm64
+
+    steps:
+      - run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            --tag $IMAGE_NAME:${SHORT_SHA} \
+            --tag $IMAGE_NAME:latest \
+            $IMAGE_NAME:${SHORT_SHA}-amd64 \
+            $IMAGE_NAME:${SHORT_SHA}-arm64
