@@ -12,12 +12,13 @@ from pi_cpp.server.policy import (
     FastWamPolicy,
     GrootPolicy,
     Pi05Policy,
+    Pi06AirbotPolicy,
     SemanticVlaPolicy,
     SmolVlaPolicy,
     StarVlaPolicy,
 )
 
-Model = Literal["pi05", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+Model = Literal["pi05", "pi06_airbot", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
 websocket_server_module._server.serve = partial(
     websocket_server_module._server.serve,
     ping_interval=None,
@@ -28,6 +29,8 @@ websocket_server_module._server.serve = partial(
 def run_server(*, model: Model, model_dir: Path, host: str, port: int) -> int:
     if model == "pi05":
         policy = Pi05Policy(model_dir=model_dir)
+    elif model == "pi06_airbot":
+        policy = Pi06AirbotPolicy(model_dir=model_dir)
     elif model == "fastwam":
         policy = FastWamPolicy(model_dir=model_dir)
     elif model == "semanticvla":
@@ -56,6 +59,27 @@ def run_server(*, model: Model, model_dir: Path, host: str, port: int) -> int:
     }
     if model == "pi05":
         metadata["action_steps"] = policy.action_steps
+    elif model == "pi06_airbot":
+        metadata.update(
+            {
+                "camera_order": list(policy.camera_order),
+                "request_keys": [*policy.camera_order, "state", "prompt", "advantage"],
+                "image_layout": "HWC",
+                "image_dtype": "uint8",
+                "image_range": [0, 255],
+                "state_layout": "left_arm_6,left_gripper,right_arm_6,right_gripper",
+                "action_layout": "left_arm_6,left_gripper,right_arm_6,right_gripper",
+                "internal_action_dim": policy.internal_action_dim,
+                "token_length": policy.token_length,
+                "action_semantics": policy.action_semantics,
+                "advantage_conditioning": policy.advantage_conditioning,
+                "default_advantage": policy.default_advantage,
+                "denoise_steps": policy.denoise_steps,
+                "dt": policy.dt,
+                "noise_mode": "seeded_stream",
+                "manifest_schema": policy.manifest_schema,
+            }
+        )
 
     server = WebsocketPolicyServer(
         policy=policy,

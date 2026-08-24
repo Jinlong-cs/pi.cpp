@@ -88,6 +88,37 @@ class Pi05Policy(BasePolicy):
 
 
 @dataclass
+class Pi06AirbotPolicy(BasePolicy):
+    model_dir: Path
+
+    def __post_init__(self) -> None:
+        self._runner = picpp.build_pi06_airbot_runner(model_dir=self.model_dir)
+        self.action_horizon = self._runner.action_horizon
+        self.action_dim = self._runner.action_dim
+        self.image_size = self._runner.image_size
+        self.num_cameras = self._runner.num_cameras
+        self.state_dim = self._runner.state_dim
+        self.camera_order = self._runner.spec.camera_order
+        self.internal_action_dim = self._runner.spec.internal_action_dim
+        self.token_length = self._runner.spec.token_length
+        self.action_semantics = self._runner.spec.action_semantics
+        self.advantage_conditioning = self._runner.spec.advantage_conditioning
+        self.default_advantage = self._runner.spec.default_advantage
+        self.denoise_steps = self._runner.spec.denoise_steps
+        self.dt = self._runner.spec.dt
+        self.manifest_schema = self._runner.manifest_schema
+
+    def infer(self, obs: dict[str, Any]) -> dict[str, np.ndarray]:
+        actions = self._runner.run_once(
+            images=tuple(obs[name] for name in self.camera_order),
+            prompt=str(obs["prompt"]),
+            state=obs["state"],
+            advantage=bool(obs["advantage"]),
+        )
+        return {"actions": np.asarray(actions, dtype=np.float32)}
+
+
+@dataclass
 class FastWamPolicy(BasePolicy):
     model_dir: Path
 
