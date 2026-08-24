@@ -16,6 +16,7 @@ __all__ = [
     "Pi05OfflineRunner",
     "Pi05Result",
     "Pi05RunnerWrapper",
+    "Pi06AirbotRunnerWrapper",
     "SemanticVlaOfflineRunner",
     "SemanticVlaResult",
     "SemanticVlaRunnerWrapper",
@@ -30,6 +31,7 @@ __all__ = [
     "build_evo1_runner",
     "build_groot_runner",
     "build_pi05_runner",
+    "build_pi06_airbot_runner",
     "build_semanticvla_runner",
     "build_smolvla_runner",
     "build_starvla_runner",
@@ -43,6 +45,7 @@ def __getattr__(name: str):
         "Evo1RunnerWrapper",
         "GrootRunnerWrapper",
         "Pi05RunnerWrapper",
+        "Pi06AirbotRunnerWrapper",
         "SemanticVlaRunnerWrapper",
         "SmolVlaRunnerWrapper",
         "StarVlaRunnerWrapper",
@@ -51,6 +54,7 @@ def __getattr__(name: str):
         "build_evo1_runner",
         "build_groot_runner",
         "build_pi05_runner",
+        "build_pi06_airbot_runner",
         "build_semanticvla_runner",
         "build_smolvla_runner",
         "build_starvla_runner",
@@ -73,12 +77,14 @@ def __getattr__(name: str):
             build_smolvla_runner,
             build_starvla_runner,
         )
+        from pi_cpp.pi06_airbot import Pi06AirbotRunnerWrapper, build_pi06_airbot_runner
 
         globals()["FastWamRunnerWrapper"] = FastWamRunnerWrapper
         globals()["Dit4DitRunnerWrapper"] = Dit4DitRunnerWrapper
         globals()["Evo1RunnerWrapper"] = Evo1RunnerWrapper
         globals()["GrootRunnerWrapper"] = GrootRunnerWrapper
         globals()["Pi05RunnerWrapper"] = Pi05RunnerWrapper
+        globals()["Pi06AirbotRunnerWrapper"] = Pi06AirbotRunnerWrapper
         globals()["SemanticVlaRunnerWrapper"] = SemanticVlaRunnerWrapper
         globals()["SmolVlaRunnerWrapper"] = SmolVlaRunnerWrapper
         globals()["StarVlaRunnerWrapper"] = StarVlaRunnerWrapper
@@ -87,6 +93,7 @@ def __getattr__(name: str):
         globals()["build_evo1_runner"] = build_evo1_runner
         globals()["build_groot_runner"] = build_groot_runner
         globals()["build_pi05_runner"] = build_pi05_runner
+        globals()["build_pi06_airbot_runner"] = build_pi06_airbot_runner
         globals()["build_semanticvla_runner"] = build_semanticvla_runner
         globals()["build_smolvla_runner"] = build_smolvla_runner
         globals()["build_starvla_runner"] = build_starvla_runner
