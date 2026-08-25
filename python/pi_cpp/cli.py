@@ -11,8 +11,8 @@ from pi_cpp.commands.latency import run_latency
 from pi_cpp.commands.server import run_server
 
 EvalModel = Literal["pi05", "fastwam", "semanticvla", "smolvla", "dit4dit", "groot", "starvla"]
-LatencyModel = Literal["pi05", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
-ServerModel = Literal["pi05", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+LatencyModel = Literal["pi05", "pi06_airbot", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+ServerModel = Literal["pi05", "pi06_airbot", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
 
 
 @dataclass(kw_only=True)

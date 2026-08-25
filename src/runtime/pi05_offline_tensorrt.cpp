@@ -83,16 +83,18 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
 
   DeviceTensor* current_x_t = &(*x_t_buffers)[0];
   DeviceTensor* next_x_t = &(*x_t_buffers)[1];
+  float timestep_value = 1.0F;
 
   RETURN_IF_ERROR(timers->suffix_loop.Start(stream));
   for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-    RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
+    RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, timestep_value, stream));
 
     suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
     suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
 
     RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
     std::swap(current_x_t, next_x_t);
+    timestep_value += pi05::kDefaultDt;
   }
   RETURN_IF_ERROR(timers->suffix_loop.Stop(stream));
 
