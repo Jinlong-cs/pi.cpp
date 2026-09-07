@@ -2,7 +2,6 @@
 
 #include <NvInfer.h>
 #include <fstream>
-#include <iterator>
 #include <string>
 #include <vector>
 
@@ -12,12 +11,12 @@ namespace {
 Status ReadBinary(const std::filesystem::path& path, std::vector<char>* bytes) {
   std::ifstream stream(path, std::ios::binary);
   if (!stream) return Status::NotFound("TensorRT engine not found: " + path.string());
-  stream.unsetf(std::ios::skipws);
   stream.seekg(0, std::ios::end);
   const auto size = stream.tellg();
   stream.seekg(0, std::ios::beg);
-  bytes->reserve(static_cast<std::size_t>(size));
-  bytes->insert(bytes->begin(), std::istream_iterator<char>(stream), std::istream_iterator<char>());
+  bytes->resize(static_cast<std::size_t>(size));
+  if (size > 0) stream.read(bytes->data(), size);
+  if (!stream) return Status::RuntimeError("failed to read TensorRT engine: " + path.string());
   return Status::Ok();
 }
 
