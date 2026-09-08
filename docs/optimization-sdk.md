@@ -143,3 +143,94 @@ unavailable CUDA version is represented explicitly rather than inferred. A new
 asset is not `accepted` until artifact identity carries existing evidence or
 the full mechanical, parity, standalone, server/client, and LIBERO 400 ladder
 passes.
+
+## PI0.5 Compact712 Workflow
+
+The public recipe is
+`recipes/pi05/compact712-a62.json`. It records the measured NX-deployed
+compact712 INT8 lineage: 968-token prefixes compacted to 712
+(`2 * real_camera_tokens + 200`, pad camera dropped), per-layer QDQ with
+selective activation rollback on the prefix LM, FFN structural pruning with
+keep indices, a sparse QAT delta over a canonical base, and per-stage trtexec
+flags. Status is `measured`: the SDK implements the same semantics as the
+recorded AGX lineage, but a graph produced here is `accepted` only when its
+artifact identity matches the sealed evidence or it passes the promotion
+ladder on target hardware.
+
+Lineage order (one command per step, evidence JSON per step):
+
+```bash
+# 1. safe4 reconstruction: narrow FFN to the safe4 keep set, then apply the
+#    sparse QAT delta. The manifest pins format, delta-file SHA256, and the
+#    canonical base/target hashes of the narrowed arrays.
+picpp-opt apply-delta \
+  --input-onnx "$BASE/prefix_lm.onnx" \
+  --output-onnx "$CANDIDATE/onnx/safe4/prefix_lm.onnx" \
+  --summary "$CANDIDATE/evidence/reconstruct_safe4.json" \
+  --base-keep-indices /path/to/prune9p375_deqscore_full_keep_indices.json \
+  --target-keep-indices /path/to/safe4_l13_16_at12p5_keep_v1.json \
+  --delta /path/to/safe4_12p5_joint1101_sparse_delta_v2.npz \
+  --manifest /path/to/safe4_12p5_joint1101_sparse_delta_v2.summary.json
+
+# 2. a62 reconstruction: narrow safe4 -> asym_a62_75 keep set.
+picpp-opt narrow-ffn \
+  --input-onnx "$CANDIDATE/onnx/safe4/prefix_lm.onnx" \
+  --output-onnx "$CANDIDATE/onnx/a62_full968/prefix_lm.onnx" \
+  --summary "$CANDIDATE/evidence/reconstruct_a62.json" \
+  --base-keep-indices /path/to/safe4_l13_16_at12p5_keep_v1.json \
+  --target-keep-indices /path/to/asym_a62_75_keep_v1.json
+
+# 3. compact the three stages (prefix_embed keeps the sealed retained-indices
+#    rule: [cam0 0..t) + [cam1 256..256+t) + [prompt 768..968)).
+for stage in prefix_embed prefix_lm suffix_step; do
+  picpp-opt compact-sequence \
+    --input-onnx "$SOURCE/$stage.onnx" --output-onnx "$CANDIDATE/onnx/$stage.onnx" \
+    --summary "$CANDIDATE/evidence/${stage}_compact712.json" \
+    --stage "$stage" --real-camera-tokens 256 --external-data-file "$stage.data"
+done
+
+# 4. static audit + io contract rewrite.
+picpp-opt audit-sequence \
+  "$CANDIDATE/onnx/prefix_embed.onnx" "$CANDIDATE/onnx/prefix_lm.onnx" \
+  "$CANDIDATE/onnx/suffix_step.onnx" \
+  --output "$CANDIDATE/evidence/compact712_onnx_audit.json"
+picpp-opt rewrite-io --input-json "$SOURCE/io/prefix_lm_io.json" \
+  --output-json "$CANDIDATE/io/prefix_lm_io.json" \
+  --replace 968=712 --expected-count 40
+
+# 5. target-local TensorRT builds (embed fp16+int8 O2; lm/suffix int8 O3).
+picpp-opt trt-build --onnx "$CANDIDATE/onnx/prefix_embed.onnx" \
+  --engine "$CANDIDATE/engines/prefix_embed.engine" \
+  --target-name nx01 --architecture ampere-sm87 --fp16 --int8 \
+  --builder-optimization-level 2 --workspace-mib 4096 \
+  --layer-info "$CANDIDATE/evidence/prefix_embed.layers.json" \
+  --log "$CANDIDATE/evidence/prefix_embed.build.log" \
+  --output "$CANDIDATE/evidence/prefix_embed.build.json"
+```
+
+Precision strategy per stage (which operators become INT8): the vision tower
+quantizes fully (`--fp16 --int8`, reference 324 Q / 486 DQ); the suffix step
+quantizes fully (101 Q / 268 DQ); the prefix LM carries the drift budget and
+uses int8 weights with hot-layer activation rollback and per-layer percentile
+scales via:
+
+```bash
+picpp-opt edit-qdq --input-onnx "$BASE/prefix_lm.onnx" \
+  --output-onnx "$CANDIDATE/onnx/edited/prefix_lm.onnx" \
+  --summary "$CANDIDATE/evidence/edit_qdq.json" \
+  --remove-q 'layers\.7/' --set-scale 'layers\.7/.*=0.05'
+```
+
+`edit-qdq` removes matching activation Q/DQ pairs (activations return to fp16,
+weights stay int8) and overrides per-layer activation scales. The recorded
+pvqat lineage pattern list was not archived; re-derive it from the 8-sample
+drift ablation before a reproduction build.
+
+Sparse-delta contract: the manifest lists every narrowed array
+`{name: {dtype, shape, changed}}` and pins `base_canonical_sha256` /
+`target_canonical_sha256` under the SDK canonical encoding (sorted name +
+dtype + shape + bytes). The NPZ carries `{name}_indices` (int64) and
+`{name}_values` (array dtype) for each changed array; int arrays are updated by
+int8-wrapped addition and float32 arrays by replacement. The sealed lineage
+assets were removed from their AGX paths; a reproduction build needs the
+keep-index JSONs, the sparse delta, and the lineage source ONNX re-provisioned.

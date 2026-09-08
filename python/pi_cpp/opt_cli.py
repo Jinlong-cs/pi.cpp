@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -12,6 +13,14 @@ import onnx
 from pi_cpp.optimization.compare import compare_outputs, load_npz, run_onnx
 from pi_cpp.optimization.contracts import read_bundle, write_json
 from pi_cpp.optimization.onnx_graph import inspect_model
+from pi_cpp.optimization.pi05 import (
+    apply_sparse_delta,
+    audit_sequence,
+    compact_sequence,
+    edit_activation_qdq,
+    narrow_ffn,
+    rewrite_io_dimensions,
+)
 from pi_cpp.optimization.qdq import QDQStageConfig, quantize_model, save_model, strip_qdq_pairs
 from pi_cpp.optimization.trt_tools import (
     benchmark_engine,
@@ -80,6 +89,80 @@ def build_parser() -> argparse.ArgumentParser:
     strip.add_argument("--external-data-file")
     strip.add_argument("--skip-check", action="store_true")
 
+    compact = commands.add_parser(
+        "compact-sequence", help="Rewrite a PI0.5 stage to a shorter internal prefix sequence."
+    )
+    compact.add_argument("--input-onnx", type=Path, required=True)
+    compact.add_argument("--output-onnx", type=Path, required=True)
+    compact.add_argument("--summary", type=Path, required=True)
+    compact.add_argument(
+        "--stage", choices=("prefix_embed", "prefix_lm", "suffix_step"), required=True
+    )
+    compact.add_argument(
+        "--real-camera-tokens", type=int, choices=(64, 96, 128, 192, 256), required=True
+    )
+    compact.add_argument("--external-data-file")
+    compact.add_argument("--skip-check", action="store_true")
+
+    audit = commands.add_parser(
+        "audit-sequence",
+        help="Audit static PI0.5 ONNX sequence-length dependencies without loading weights.",
+    )
+    audit.add_argument("models", type=Path, nargs="+")
+    audit.add_argument("--output", type=Path, required=True)
+
+    rewrite_io = commands.add_parser(
+        "rewrite-io", help="Rewrite static PI0.5 sequence dimensions in an IO contract JSON file."
+    )
+    rewrite_io.add_argument("--input-json", type=Path, required=True)
+    rewrite_io.add_argument("--output-json", type=Path, required=True)
+    rewrite_io.add_argument("--replace", action="append", required=True)
+    rewrite_io.add_argument("--expected-count", type=int, required=True)
+
+    edit_qdq = commands.add_parser(
+        "edit-qdq",
+        help="Edit PI0.5 activation QDQ: remove hot-layer pairs and override per-layer scales.",
+    )
+    edit_qdq.add_argument("--input-onnx", type=Path, required=True)
+    edit_qdq.add_argument("--output-onnx", type=Path, required=True)
+    edit_qdq.add_argument("--summary", type=Path, required=True)
+    edit_qdq.add_argument(
+        "--remove-q", action="append", default=[], help="regex for QuantizeLinear names to remove"
+    )
+    edit_qdq.add_argument(
+        "--set-scale",
+        action="append",
+        default=[],
+        help="regex=float for QuantizeLinear scale edits",
+    )
+    edit_qdq.add_argument("--external-data-file")
+    edit_qdq.add_argument("--skip-check", action="store_true")
+
+    narrow_ffn = commands.add_parser(
+        "narrow-ffn", help="Narrow structurally pruned PI0.5 FFN QDQ tensors in an existing ONNX."
+    )
+    narrow_ffn.add_argument("--input-onnx", type=Path, required=True)
+    narrow_ffn.add_argument("--output-onnx", type=Path, required=True)
+    narrow_ffn.add_argument("--summary", type=Path, required=True)
+    narrow_ffn.add_argument("--base-keep-indices", type=Path, required=True)
+    narrow_ffn.add_argument("--target-keep-indices", type=Path, required=True)
+    narrow_ffn.add_argument("--layers", default="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16")
+    narrow_ffn.add_argument("--external-data-file")
+    narrow_ffn.add_argument("--skip-check", action="store_true")
+
+    apply_delta = commands.add_parser(
+        "apply-delta", help="Narrow PI0.5 FFN QDQ tensors and apply a same-structure sparse delta."
+    )
+    apply_delta.add_argument("--input-onnx", type=Path, required=True)
+    apply_delta.add_argument("--output-onnx", type=Path, required=True)
+    apply_delta.add_argument("--summary", type=Path, required=True)
+    apply_delta.add_argument("--base-keep-indices", type=Path, required=True)
+    apply_delta.add_argument("--target-keep-indices", type=Path, required=True)
+    apply_delta.add_argument("--delta", type=Path, required=True)
+    apply_delta.add_argument("--manifest", type=Path, required=True)
+    apply_delta.add_argument("--external-data-file")
+    apply_delta.add_argument("--skip-check", action="store_true")
+
     compare = commands.add_parser(
         "compare", help="Run two ONNX models on the same NPZ inputs and compare outputs."
     )
@@ -141,6 +224,53 @@ def main(argv: list[str] | None = None) -> int:
     elif args.command == "strip-qdq":
         model = onnx.load_model(args.input_onnx, load_external_data=True)
         candidate, summary = strip_qdq_pairs(model, tuple(args.name_pattern))
+        save_model(candidate, args.output_onnx, args.external_data_file, check=not args.skip_check)
+        write_json(
+            _absent(args.summary),
+            {"input_onnx": str(args.input_onnx), "output_onnx": str(args.output_onnx), **summary},
+        )
+    elif args.command == "compact-sequence":
+        model = onnx.load_model(args.input_onnx, load_external_data=True)
+        candidate, summary = compact_sequence(model, args.stage, args.real_camera_tokens)
+        save_model(candidate, args.output_onnx, args.external_data_file, check=not args.skip_check)
+        write_json(
+            _absent(args.summary),
+            {"input_onnx": str(args.input_onnx), "output_onnx": str(args.output_onnx), **summary},
+        )
+    elif args.command == "audit-sequence":
+        write_json(_absent(args.output), audit_sequence(args.models))
+    elif args.command == "rewrite-io":
+        payload = json.loads(args.input_json.read_text())
+        replacements = {}
+        for value in args.replace:
+            old, new = value.split("=", 1)
+            replacements[int(old)] = int(new)
+        rewritten, count = rewrite_io_dimensions(payload, replacements, args.expected_count)
+        _absent(args.output_json).write_text(json.dumps(rewritten, indent=2) + "\n")
+        print(json.dumps({"output": str(args.output_json), "replacement_count": count}))
+    elif args.command == "edit-qdq":
+        model = onnx.load_model(args.input_onnx, load_external_data=True)
+        candidate, summary = edit_activation_qdq(model, tuple(args.remove_q), tuple(args.set_scale))
+        save_model(candidate, args.output_onnx, args.external_data_file, check=not args.skip_check)
+        write_json(
+            _absent(args.summary),
+            {"input_onnx": str(args.input_onnx), "output_onnx": str(args.output_onnx), **summary},
+        )
+    elif args.command == "narrow-ffn":
+        model = onnx.load_model(args.input_onnx, load_external_data=True)
+        candidate, summary = narrow_ffn(
+            model, args.base_keep_indices, args.target_keep_indices, args.layers
+        )
+        save_model(candidate, args.output_onnx, args.external_data_file, check=not args.skip_check)
+        write_json(
+            _absent(args.summary),
+            {"input_onnx": str(args.input_onnx), "output_onnx": str(args.output_onnx), **summary},
+        )
+    elif args.command == "apply-delta":
+        model = onnx.load_model(args.input_onnx, load_external_data=True)
+        candidate, summary = apply_sparse_delta(
+            model, args.delta, args.manifest, args.base_keep_indices, args.target_keep_indices
+        )
         save_model(candidate, args.output_onnx, args.external_data_file, check=not args.skip_check)
         write_json(
             _absent(args.summary),
