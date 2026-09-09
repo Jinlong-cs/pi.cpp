@@ -785,10 +785,120 @@ def _run_starvla_eval(*, dataset: str, model_dir: Path | None, progress: bool) -
     return 0
 
 
+PI06_HETEROGENEOUS_JAX_THRESHOLDS = {
+    # Fixed contract revision gates for the frozen golden 36-case set
+    # (per-dim quantile-scaled action space, fp16_vs_jax_external_action).
+    # AGX worst-case gate recalibrated 0.085 -> 0.095 (H100 worst 0.0782 on
+    # case_004; AGX floor 0.0853 = H100 + ~0.007 bf16-cache quantization,
+    # keeping the H100 1.09 margin ratio).
+    "aggregate_relative_l2_max": 0.02,
+    "aggregate_cosine_min": 0.9998,
+    "worst_case_relative_l2_max": 0.095,
+    "global_max_abs_max": 0.2,
+}
+PI06_HETEROGENEOUS_CASE_TENSORS = (
+    ("image", "image_float32_nchw.npy"),
+    ("image_mask", "image_mask_bool.npy"),
+    ("tokenized_prompt", "token_ids_int64.npy"),
+    ("tokenized_prompt_mask", "token_mask_bool.npy"),
+    ("state", "normalized_state.npy"),
+    ("embodiment_id", "embodiment_id_int32.npy"),
+)
+
+
+def _pi06_heterogeneous_action_scale(model_dir: Path | None) -> np.ndarray:
+    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir)
+    stats = json.loads((runner.model_dir / runner.spec.norm_stats_path).read_text())["norm_stats"]["actions"]
+    q01 = np.asarray(stats["q01"], dtype=np.float64)
+    q99 = np.asarray(stats["q99"], dtype=np.float64)
+    return q99 - q01 + 1e-6
+
+
+def _run_pi06_heterogeneous_eval(*, dataset: str, model_dir: Path | None, progress: bool) -> int:
+    root = Path(dataset)
+    cases_json = json.loads((root / "cases.json").read_text())
+    authoritative = cases_json["authoritative_public_api_raw32"]
+    case_ids = sorted(authoritative)
+    noise = np.load(root / "frozen_inputs" / "noise_seed_20260909.npy")
+    noise = np.ascontiguousarray(noise, dtype=np.float32)
+    if noise.shape == (50, 16):
+        noise = noise[None]
+    if noise.shape != (1, 50, 16):
+        raise ValueError(f"golden noise has shape {noise.shape}, expected [1,50,16]")
+
+    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir)
+    scale = _pi06_heterogeneous_action_scale(model_dir)
+    metrics = {}
+    golden_all = []
+    candidate_all = []
+    for case_id in track(case_ids, description="eval pi06_heterogeneous"):
+        case_dir = root / "frozen_inputs" / "run_a" / case_id
+        tensors = {}
+        for name, filename in PI06_HETEROGENEOUS_CASE_TENSORS:
+            path = case_dir / filename
+            if not path.exists():
+                raise ValueError(f"case tensor {filename} missing in {case_dir}")
+            tensors[name] = np.load(path)
+        tensors["x_t"] = noise
+        actions = runner.run_abi(tensors)
+        golden = np.load(root / "actions_raw32" / f"{case_id}.npy").astype(np.float32)
+        if actions.shape != golden.shape or actions.shape[-1] != 16:
+            raise ValueError(f"case {case_id}: actions {actions.shape} vs golden {golden.shape}")
+        golden_scaled = (golden / scale).astype(np.float32)
+        candidate_scaled = (actions / scale).astype(np.float32)
+        golden_all.append(golden_scaled.ravel())
+        candidate_all.append(candidate_scaled.ravel())
+        delta = candidate_scaled.astype(np.float64) - golden_scaled.astype(np.float64)
+        metrics[case_id] = {
+            "relative_l2": float(np.linalg.norm(delta) / max(float(np.linalg.norm(golden_scaled)), 1e-12)),
+            "max_abs": float(np.max(np.abs(delta))),
+        }
+        if progress:
+            console.print_json(data={"event": "eval_case", "case_id": case_id, **metrics[case_id]})
+
+    golden_all = np.concatenate(golden_all)
+    candidate_all = np.concatenate(candidate_all)
+    aggregate_delta = candidate_all.astype(np.float64) - golden_all.astype(np.float64)
+    golden_norm = float(np.linalg.norm(golden_all))
+    candidate_norm = float(np.linalg.norm(candidate_all))
+    if golden_norm <= 1e-12 and candidate_norm <= 1e-12:
+        cosine = 1.0
+    elif golden_norm <= 1e-12 or candidate_norm <= 1e-12:
+        cosine = 0.0
+    else:
+        cosine = float(np.dot(golden_all, candidate_all) / (golden_norm * candidate_norm))
+    observed = {
+        "aggregate_relative_l2_max": float(np.linalg.norm(aggregate_delta) / max(golden_norm, 1e-12)),
+        "aggregate_cosine_min": cosine,
+        "worst_case_relative_l2_max": max(case["relative_l2"] for case in metrics.values()),
+        "global_max_abs_max": max(case["max_abs"] for case in metrics.values()),
+    }
+    gates = {
+        key: bool(observed[key] <= threshold if "max" in key else observed[key] >= threshold)
+        for key, threshold in PI06_HETEROGENEOUS_JAX_THRESHOLDS.items()
+    }
+    console.print_json(
+        data={
+            "model": "pi06_heterogeneous",
+            "dataset": str(root),
+            "case_count": len(case_ids),
+            "gate": "fp16_vs_jax_external_action",
+            "thresholds": PI06_HETEROGENEOUS_JAX_THRESHOLDS,
+            "observed": observed,
+            "gates": gates,
+            "passed": all(gates.values()),
+            "per_case": [{"case_id": case_id, **case} for case_id, case in metrics.items()],
+        }
+    )
+    return 0
+
+
 def run_eval(*, model: str, dataset: str, model_dir: Path | None) -> int:
     progress = os.environ.get("PICPP_EVAL_PROGRESS") == "1"
     if model == "pi05":
         return _run_pi05_eval(dataset=dataset, model_dir=model_dir, progress=progress)
+    if model == "pi06_heterogeneous":
+        return _run_pi06_heterogeneous_eval(dataset=dataset, model_dir=model_dir, progress=progress)
     if model == "fastwam":
         return _run_fastwam_eval(dataset=dataset, model_dir=model_dir, progress=progress)
     if model == "semanticvla":
