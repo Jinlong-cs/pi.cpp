@@ -143,6 +143,26 @@
         "client_roundtrip_p95_ms": 367.2,
         "server_infer_p50_ms": 358.7
       }
+    },
+    {
+      "schema_version": 1,
+      "kind": "closed-loop",
+      "status": "measured",
+      "command": ["pi05_direct_libero_eval.py"],
+      "inputs": {"dataset": "LIBERO 400", "protocol": "AGX in-process closed loop", "lineage": "PI05_量化实验完整总结_20260806.md"},
+      "outputs": {},
+      "metrics": {
+        "successes": 353,
+        "episodes": 400,
+        "success_rate": 0.8825,
+        "suites": [98, 97, 78, 80],
+        "standalone_median_ms": 159.648663,
+        "gate40": 33,
+        "gate40_episodes": 40,
+        "smoke5": 4,
+        "smoke5_episodes": 5,
+        "recovery_note": "pre-QAT-recovery point; the recovery-first QAT to 360 never produced a survivor"
+      }
     }
   ]
 }
