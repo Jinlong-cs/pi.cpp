@@ -27,6 +27,8 @@ struct Pi05OfflineRequest {
   HostTensor tokenized_prompt;
   HostTensor tokenized_prompt_mask;
   HostTensor x_t;
+  HostTensor state;
+  HostTensor embodiment_id;
 };
 
 struct Pi05RunResult {
@@ -75,6 +77,10 @@ class Pi05OfflineRunner {
   std::array<runtime::DeviceTensor, 2> x_t_buffers_;
   runtime::DeviceTensor timestep_;
   runtime::DeviceTensor dt_;
+  runtime::DeviceTensor state_;
+  runtime::DeviceTensor embodiment_id_;
+  bool has_state_input_ = false;
+  bool has_embodiment_input_ = false;
   std::size_t suffix_x_t_input_index_ = 0;
   std::size_t suffix_x_t_next_output_index_ = 0;
 };

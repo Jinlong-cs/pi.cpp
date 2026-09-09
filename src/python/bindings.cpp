@@ -283,6 +283,13 @@ PYBIND11_MODULE(_native, m) {
         request.tokenized_prompt_mask =
             HostTensorFromArray("tokenized_prompt_mask", DictArray(tensors, "tokenized_prompt_mask"));
         request.x_t = HostTensorFromArray("x_t", DictArray(tensors, "x_t"));
+        if (tensors.contains("state")) {
+          request.state = HostTensorFromArray("state", DictArray(tensors, "state"));
+        }
+        if (tensors.contains("embodiment_id")) {
+          request.embodiment_id =
+              HostTensorFromArray("embodiment_id", DictArray(tensors, "embodiment_id"));
+        }
         pi_cpp::Pi05RunResult result;
         ThrowIfError(runner.RunOnce(request, &result));
         return result;

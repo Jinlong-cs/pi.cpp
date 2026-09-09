@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "task_id": "pi06-airbot-runtime-20260825",
+  "contract_revision": 1,
+  "status": "machine_verified",
+  "objective": "Add a manifest-driven PI0.6 Airbot adapter on the existing fixed-shape TensorRT runner.",
+  "non_goals": [
+    "checkpoint conversion",
+    "TensorRT engine generation",
+    "INT8 calibration",
+    "AGX latency validation",
+    "robot closed-loop evaluation"
+  ],
+  "source": {
+    "repo": "/Users/wujinlong/Desktop/Discover/tinyaction/pi.cpp",
+    "base_commit": "3b0730de361bbafb5c388894e2198152d5c89908",
+    "worktree": "/Users/wujinlong/Desktop/Discover/tinyaction/worktrees/pi.cpp-pi06-airbot-runtime"
+  },
+  "scope": {
+    "owned_paths": [
+      "python/pi_cpp/pi06_airbot.py",
+      "python/pi_cpp/__init__.py",
+      "python/pi_cpp/server/policy.py",
+      "python/pi_cpp/commands/server.py",
+      "python/pi_cpp/commands/latency.py",
+      "python/pi_cpp/cli.py",
+      "docs/pi06-airbot.md"
+    ],
+    "forbidden_paths": [
+      "engines",
+      "checkpoints",
+      "test",
+      "design",
+      "evidence"
+    ]
+  },
+  "inputs": [
+    "Airbot LeRobot v2.1 contract",
+    "existing Pi05OfflineRunner ABI"
+  ],
+  "outputs": [
+    "PI0.6 Airbot runner API",
+    "pi06_airbot server model registration",
+    "asset manifest contract documentation"
+  ],
+  "interfaces": [
+    {
+      "id": "airbot-runner",
+      "owner_work_package": "wp-01",
+      "input": "three ordered RGB images, task prompt, raw 14D state, and boolean advantage; the direct runner defaults to positive when omitted",
+      "output": "float32 action array with shape [50,14]",
+      "consumers": ["wp-01"],
+      "change_control": "Keep preprocessing and postprocessing aligned with the asset manifest."
+    },
+    {
+      "id": "airbot-server-model",
+      "owner_work_package": "wp-01",
+      "input": "policy-websocket observation and model name pi06_airbot",
+      "output": "registered server policy using the Airbot runner",
+      "consumers": ["wp-01"],
+      "change_control": "Do not alter existing model routes."
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "wp-01",
+      "goal": "Implement the Airbot adapter and server wiring.",
+      "depends_on": [],
+      "owned_paths": [
+        "python/pi_cpp/pi06_airbot.py",
+        "python/pi_cpp/__init__.py",
+        "python/pi_cpp/server/policy.py",
+        "python/pi_cpp/commands/server.py",
+        "python/pi_cpp/commands/latency.py",
+        "python/pi_cpp/cli.py",
+        "docs/pi06-airbot.md"
+      ],
+      "inputs": ["Airbot contract", "existing runner"],
+      "outputs": ["adapter", "server route", "documentation"],
+      "acceptance_gate_ids": ["machine-checks", "human-review"]
+    }
+  ],
+  "integration_owner": "/root",
+  "constraints": {
+    "safety": ["Do not modify remote training files or credentials."],
+    "reversibility": "Use an isolated worktree and preserve the main branch.",
+    "budget": "Keep the PR to reusable runtime code and one concise contract document."
+  },
+  "skill_refs": ["agent-workflow-guardrails", "picpp", "vla-train"],
+  "acceptance_file": "acceptance.json",
+  "artifact_root": ".agent/tasks/pi06-airbot-runtime-20260825",
+  "promotion": {
+    "targets": [],
+    "rule": "Do not promote deployment results before engine and AGX gates pass."
+  }
+}
