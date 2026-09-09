@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "model_spec": {
+    "schema_version": 1,
+    "name": "FastWAM",
+    "revision": "EddieWu577/picpp_assets@a6a72d3135304473d4087eb94def8b5249b449d6",
+    "stages": {
+      "vae_image_encoder": "onnx/vae_image_encoder.onnx",
+      "video_prefill": "onnx/video_prefill.onnx",
+      "context_kv_prefill": "onnx/context_kv_prefill.onnx",
+      "action_step_dynamic_kv": "onnx/action_step_dynamic_kv.onnx"
+    },
+    "contract": {
+      "context_cache": "context_k_0..29/context_v_0..29",
+      "denoise_steps": 10,
+      "evaluation": "LIBERO 400 server/client closed loop",
+      "output": "action chunk"
+    }
+  },
+  "target_fingerprint": {
+    "schema_version": 1,
+    "name": "Jetson AGX Orin",
+    "architecture": "Ampere SM87",
+    "hardware": {
+      "class": "edge",
+      "gpu": "Jetson AGX Orin"
+    },
+    "software": {
+      "tensorrt": "10.3 recorded accepted environment",
+      "engine_portability": "engines must be rebuilt on the target"
+    }
+  },
+  "optimization_plan": {
+    "schema_version": 1,
+    "name": "fastwam-agx-orin-selective-int8-five-node-guard",
+    "status": "measured",
+    "model": "FastWAM",
+    "target": "Jetson AGX Orin",
+    "stages": {
+      "vae_image_encoder": {
+        "enabled": false,
+        "precision": "fp16",
+        "expected_quantized_nodes": 0
+      },
+      "video_prefill": {
+        "enabled": true,
+        "precision": "int8-qdq",
+        "activation_scale": 0.1,
+        "per_channel_weights": true,
+        "include_name_patterns": [".*"],
+        "exclude_name_patterns": [],
+        "keep_fp16_name_patterns": [],
+        "expected_quantized_nodes": 297,
+        "expected_guarded_nodes": 0
+      },
+      "context_kv_prefill": {
+        "enabled": true,
+        "precision": "int8-qdq",
+        "activation_scale": 0.1,
+        "per_channel_weights": true,
+        "include_name_patterns": [".*"],
+        "exclude_name_patterns": [],
+        "keep_fp16_name_patterns": [],
+        "expected_quantized_nodes": 62,
+        "expected_guarded_nodes": 0
+      },
+      "action_step_dynamic_kv": {
+        "enabled": true,
+        "precision": "selective-int8-qdq",
+        "activation_scale": 0.1,
+        "per_channel_weights": true,
+        "include_name_patterns": [".*"],
+        "exclude_name_patterns": [],
+        "keep_fp16_name_patterns": [
+          "time_embedding[/.]0",
+          "time_embedding[/.]2",
+          "time_projection[/.]1",
+          "(^|/)action_encoder/",
+          "(^|/)head/"
+        ],
+        "expected_quantized_nodes": 240,
+        "expected_guarded_nodes": 5
+      }
+    }
+  },
+  "evidence": [
+    {
+      "schema_version": 1,
+      "kind": "published-asset-closed-loop",
+      "status": "accepted",
+      "command": [],
+      "inputs": {
+        "dataset": "LIBERO 400",
+        "protocol": "AGX server/client closed loop",
+        "published_revision": "a6a72d3135304473d4087eb94def8b5249b449d6"
+      },
+      "outputs": {
+        "action_onnx_sha256": "2474319e93a5fe22cb03d4472976335764507115f8c22011309b539e660e4f14",
+        "context_onnx_sha256": "e3694d0312dae73df3b848dddd3c010b94163571bd942a20748f6637acecfe1d"
+      },
+      "metrics": {
+        "successes": 375,
+        "episodes": 400,
+        "success_rate": 0.9375,
+        "standalone_infer_ms": 203.829734,
+        "server_infer_mean_ms": 218.21079404146062,
+        "client_roundtrip_mean_ms": 220.72445360401937
+      }
+    }
+  ]
+}

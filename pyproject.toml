@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pi-cpp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python bindings and offline runners for the pi.cpp C++ runtime"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,6 +22,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+optimization = [
+  "onnx>=1.16,<1.18",
+  "onnxruntime>=1.18,<2",
+]
 lerobot = ["lerobot==0.3.3"]
 libero = [
   "bddl==1.0.1",
@@ -38,6 +42,7 @@ libero = [
 
 [project.scripts]
 picpp = "pi_cpp.cli:main"
+picpp-opt = "pi_cpp.opt_cli:main"
 picpp-tui = "pi_cpp.tui:main"
 
 [tool.scikit-build]
