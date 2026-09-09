@@ -152,6 +152,17 @@ Status Pi05OfflineRunner::Load() {
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*timestep_spec, &timestep_));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*dt_spec, &dt_));
 
+  const auto* state_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputState);
+  const auto* embodiment_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputEmbodimentId);
+  has_state_input_ = state_spec != nullptr;
+  has_embodiment_input_ = embodiment_spec != nullptr;
+  if (has_state_input_) {
+    RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*state_spec, &state_));
+  }
+  if (has_embodiment_input_) {
+    RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*embodiment_spec, &embodiment_id_));
+  }
+
   RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_embed_, &prefix_embed_plan_));
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImage, image_));
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImageMask, image_mask_));
@@ -186,6 +197,12 @@ Status Pi05OfflineRunner::Load() {
   RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputXT, x_t_buffers_[0]));
   RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputTimestep, timestep_));
   RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputDt, dt_));
+  if (has_state_input_) {
+    RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputState, state_));
+  }
+  if (has_embodiment_input_) {
+    RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputEmbodimentId, embodiment_id_));
+  }
   RETURN_IF_ERROR(runtime::FindStageInputIndex(suffix_step_plan_, pi05::kSuffixStepInputXT, &suffix_x_t_input_index_));
 
   suffix_x_t_next_output_index_ = suffix_step_.outputs().size();
@@ -200,7 +217,8 @@ Status Pi05OfflineRunner::Load() {
   }
   for (const auto& spec : suffix_step_.inputs()) {
     if (spec.name == pi05::kSuffixStepInputPrefixPadMasks || spec.name == pi05::kSuffixStepInputXT ||
-        spec.name == pi05::kSuffixStepInputTimestep || spec.name == pi05::kSuffixStepInputDt) {
+        spec.name == pi05::kSuffixStepInputTimestep || spec.name == pi05::kSuffixStepInputDt ||
+        spec.name == pi05::kSuffixStepInputState || spec.name == pi05::kSuffixStepInputEmbodimentId) {
       continue;
     }
     auto cache_it = prefix_lm_workspace_.named_outputs.find(spec.name);
@@ -225,6 +243,18 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.tokenized_prompt, &tokenized_prompt_, stream_.get()));
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.tokenized_prompt_mask, &tokenized_prompt_mask_, stream_.get()));
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.x_t, &x_t_buffers_[0], stream_.get()));
+  if (has_state_input_) {
+    if (request.state.data.empty()) {
+      return Status::InvalidArgument("PI0.5 suffix engine requires a state tensor");
+    }
+    RETURN_IF_ERROR(runtime::CopyHostToDevice(request.state, &state_, stream_.get()));
+  }
+  if (has_embodiment_input_) {
+    if (request.embodiment_id.data.empty()) {
+      return Status::InvalidArgument("PI0.5 suffix engine requires an embodiment_id tensor");
+    }
+    RETURN_IF_ERROR(runtime::CopyHostToDevice(request.embodiment_id, &embodiment_id_, stream_.get()));
+  }
 
   auto start = std::chrono::steady_clock::now();
   Status status = RunPi05Stages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
@@ -239,13 +269,20 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
 double Pi05OfflineRunner::load_ms() const { return load_ms_; }
 
 std::vector<TensorSpec> Pi05OfflineRunner::input_specs() const {
-  return {
+  std::vector<TensorSpec> specs = {
       image_.spec,
       image_mask_.spec,
       tokenized_prompt_.spec,
       tokenized_prompt_mask_.spec,
       x_t_buffers_[0].spec,
   };
+  if (has_state_input_) {
+    specs.push_back(state_.spec);
+  }
+  if (has_embodiment_input_) {
+    specs.push_back(embodiment_id_.spec);
+  }
+  return specs;
 }
 
 }  // namespace pi_cpp
