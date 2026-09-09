@@ -13,12 +13,13 @@ from pi_cpp.server.policy import (
     GrootPolicy,
     Pi05Policy,
     Pi06AirbotPolicy,
+    Pi06HeterogeneousPolicy,
     SemanticVlaPolicy,
     SmolVlaPolicy,
     StarVlaPolicy,
 )
 
-Model = Literal["pi05", "pi06_airbot", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+Model = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
 websocket_server_module._server.serve = partial(
     websocket_server_module._server.serve,
     ping_interval=None,
@@ -31,6 +32,8 @@ def run_server(*, model: Model, model_dir: Path, host: str, port: int) -> int:
         policy = Pi05Policy(model_dir=model_dir)
     elif model == "pi06_airbot":
         policy = Pi06AirbotPolicy(model_dir=model_dir)
+    elif model == "pi06_heterogeneous":
+        policy = Pi06HeterogeneousPolicy(model_dir=model_dir)
     elif model == "fastwam":
         policy = FastWamPolicy(model_dir=model_dir)
     elif model == "semanticvla":

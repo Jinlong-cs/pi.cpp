@@ -32,6 +32,7 @@ __all__ = [
     "build_groot_runner",
     "build_pi05_runner",
     "build_pi06_airbot_runner",
+    "build_pi06_heterogeneous_runner",
     "build_semanticvla_runner",
     "build_smolvla_runner",
     "build_starvla_runner",
@@ -46,6 +47,7 @@ def __getattr__(name: str):
         "GrootRunnerWrapper",
         "Pi05RunnerWrapper",
         "Pi06AirbotRunnerWrapper",
+        "Pi06HeterogeneousRunnerWrapper",
         "SemanticVlaRunnerWrapper",
         "SmolVlaRunnerWrapper",
         "StarVlaRunnerWrapper",
@@ -55,6 +57,8 @@ def __getattr__(name: str):
         "build_groot_runner",
         "build_pi05_runner",
         "build_pi06_airbot_runner",
+        "build_pi06_heterogeneous_runner",
+    "build_pi06_heterogeneous_runner",
         "build_semanticvla_runner",
         "build_smolvla_runner",
         "build_starvla_runner",
@@ -78,6 +82,10 @@ def __getattr__(name: str):
             build_starvla_runner,
         )
         from pi_cpp.pi06_airbot import Pi06AirbotRunnerWrapper, build_pi06_airbot_runner
+        from pi_cpp.pi06_heterogeneous import (
+            Pi06HeterogeneousRunnerWrapper,
+            build_pi06_heterogeneous_runner,
+        )
 
         globals()["FastWamRunnerWrapper"] = FastWamRunnerWrapper
         globals()["Dit4DitRunnerWrapper"] = Dit4DitRunnerWrapper
@@ -85,6 +93,7 @@ def __getattr__(name: str):
         globals()["GrootRunnerWrapper"] = GrootRunnerWrapper
         globals()["Pi05RunnerWrapper"] = Pi05RunnerWrapper
         globals()["Pi06AirbotRunnerWrapper"] = Pi06AirbotRunnerWrapper
+        globals()["Pi06HeterogeneousRunnerWrapper"] = Pi06HeterogeneousRunnerWrapper
         globals()["SemanticVlaRunnerWrapper"] = SemanticVlaRunnerWrapper
         globals()["SmolVlaRunnerWrapper"] = SmolVlaRunnerWrapper
         globals()["StarVlaRunnerWrapper"] = StarVlaRunnerWrapper
@@ -94,6 +103,7 @@ def __getattr__(name: str):
         globals()["build_groot_runner"] = build_groot_runner
         globals()["build_pi05_runner"] = build_pi05_runner
         globals()["build_pi06_airbot_runner"] = build_pi06_airbot_runner
+        globals()["build_pi06_heterogeneous_runner"] = build_pi06_heterogeneous_runner
         globals()["build_semanticvla_runner"] = build_semanticvla_runner
         globals()["build_smolvla_runner"] = build_smolvla_runner
         globals()["build_starvla_runner"] = build_starvla_runner

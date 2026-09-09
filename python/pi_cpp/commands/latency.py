@@ -69,6 +69,15 @@ def _run_pi06_airbot_latency(*, model_dir: Path | None, prompt: str) -> dict:
     images = [rng.integers(0, 256, (height, width, 3), dtype=np.uint8) for _ in range(runner.num_cameras)]
     state = np.zeros(runner.state_dim, dtype=np.float32)
 
+
+def _run_pi06_heterogeneous_latency(*, model_dir: Path | None, prompt: str) -> dict:
+    show_progress = os.environ.get("PICPP_LATENCY_PROGRESS") == "1"
+    rng = np.random.default_rng(SEED)
+    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir)
+    height, width = runner.image_size
+    images = [rng.integers(0, 256, (height, width, 3), dtype=np.uint8) for _ in range(runner.num_cameras)]
+    state = np.zeros(runner.state_dim, dtype=np.float32)
+
     for index in range(WARMUP_ITERS):
         runner.run_once(images=images, prompt=prompt, state=state)
         if show_progress:
@@ -406,6 +415,8 @@ def run_latency(*, model: str, model_dir: Path | None, prompt: str) -> int:
         metadata = _run_pi05_latency(model_dir=model_dir, prompt=prompt)
     elif model == "pi06_airbot":
         metadata = _run_pi06_airbot_latency(model_dir=model_dir, prompt=prompt)
+    elif model == "pi06_heterogeneous":
+        metadata = _run_pi06_heterogeneous_latency(model_dir=model_dir, prompt=prompt)
     elif model == "fastwam":
         metadata = _run_fastwam_latency(model_dir=model_dir, prompt=prompt)
     elif model == "semanticvla":
