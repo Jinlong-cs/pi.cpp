@@ -333,6 +333,66 @@ class Pi06HeterogeneousRunnerWrapper:
         actions = (normalized + 1.0) * 0.5 * (stats.q99 - stats.q01 + 1e-6) + stats.q01
         return np.ascontiguousarray(actions, dtype=np.float32)
 
+    def run_abi(self, tensors: dict[str, np.ndarray]) -> np.ndarray:
+        """Run the raw pi05_offline_v1 ABI tensors and return raw-space actions.
+
+        Frozen-case replay path: the caller supplies the exact engine ABI
+        tensors (image/image_mask/tokenized_prompt/tokenized_prompt_mask/
+        x_t/state/embodiment_id) instead of raw observations.
+        """
+        required = (
+            "image",
+            "image_mask",
+            "tokenized_prompt",
+            "tokenized_prompt_mask",
+            "x_t",
+            "state",
+            "embodiment_id",
+        )
+        missing = [name for name in required if name not in tensors]
+        if missing:
+            raise ValueError(f"PI0.6 heterogeneous ABI replay is missing tensors: {missing}")
+        resolved = {}
+        for name in required:
+            array = np.asarray(tensors[name])
+            if array.dtype == np.float64:
+                array = array.astype(np.float32)
+            resolved[name] = np.ascontiguousarray(array)
+        expected = {
+            "image": [1, len(self.spec.camera_order), 3, *self.spec.image_size],
+            "image_mask": [1, len(self.spec.camera_order)],
+            "tokenized_prompt": [1, self.spec.token_length],
+            "tokenized_prompt_mask": [1, self.spec.token_length],
+            "x_t": [1, self.spec.action_horizon, self.spec.internal_action_dim],
+            "state": [1, self.spec.raw_state_dim],
+            "embodiment_id": [1],
+        }
+        for name, shape in expected.items():
+            if list(resolved[name].shape) != shape:
+                raise ValueError(f"PI0.6 heterogeneous ABI tensor {name} has shape {resolved[name].shape}, expected {shape}")
+        result = self._runner.run_once(resolved)
+        actions = self._postprocess_actions(result.action)
+        self.metadata = {
+            "model": "pi06_heterogeneous",
+            "manifest_schema": self.manifest_schema,
+            "model_dir": str(self.model_dir),
+            "engine_dir": str(self.engine_dir),
+            "camera_order": list(self.spec.camera_order),
+            "internal_action_dim": self.spec.internal_action_dim,
+            "token_length": self.spec.token_length,
+            "denoise_steps": self.spec.denoise_steps,
+            "dt": self.spec.dt,
+            "action_semantics": self.spec.action_semantics,
+            "state_input": "continuous",
+            "embodiment_id": int(resolved["embodiment_id"][0]),
+            "noise_mode": "explicit",
+            "action_horizon": self.spec.action_horizon,
+            "action_dim": self.spec.raw_action_dim,
+            "input_shapes": {name: list(array.shape) for name, array in resolved.items()},
+            **result.to_dict(),
+        }
+        return actions
+
     def run_once(
         self,
         *,
