@@ -10,10 +10,10 @@ import tyro
 from pi_cpp.commands.latency import run_latency
 from pi_cpp.commands.server import run_server
 
-EvalModel = Literal["pi05", "pi06_heterogeneous", "fastwam", "semanticvla", "smolvla", "dit4dit", "groot", "starvla"]
-LatencyModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
-ServerModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
-InferModel = Literal["pi06_heterogeneous"]
+EvalModel = Literal["pi05", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "smolvla", "dit4dit", "groot", "starvla"]
+LatencyModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+ServerModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
+InferModel = Literal["pi06_heterogeneous", "pi06_rtc"]
 
 
 @dataclass(kw_only=True)
@@ -41,6 +41,8 @@ class InferConfig:
     embodiment_id: int | None = None
     noise_file: Path | None = None
     output: Path | None = None
+    delay: int | None = None
+    action_prefix_file: Path | None = None
 
 
 @dataclass(kw_only=True)
@@ -89,6 +91,8 @@ def main(argv: list[str] | None = None) -> int:
             embodiment_id=command.embodiment_id,
             noise_file=command.noise_file,
             output=command.output,
+            delay=command.delay,
+            action_prefix_file=command.action_prefix_file,
         )
 
     if isinstance(command, LatencyConfig):

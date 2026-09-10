@@ -113,6 +113,49 @@ def _run_pi06_heterogeneous_latency(*, model_dir: Path | None, prompt: str) -> d
     return metadata
 
 
+def _run_pi06_rtc_latency(*, model_dir: Path | None, prompt: str) -> dict:
+    show_progress = os.environ.get("PICPP_LATENCY_PROGRESS") == "1"
+    rng = np.random.default_rng(SEED)
+    runner = picpp.build_pi06_rtc_runner(model_dir=model_dir)
+    height, width = runner.image_size
+    images = [rng.integers(0, 256, (height, width, 3), dtype=np.uint8) for _ in range(runner.num_cameras)]
+    state = np.zeros(runner.state_dim, dtype=np.float32)
+
+    for index in range(WARMUP_ITERS):
+        runner.run_once(images=images, prompt=prompt, state=state, delay=0, action_prefix=None)
+        if show_progress:
+            console.print_json(
+                data={"event": "latency_progress", "phase": "warmup", "done": index + 1, "total": WARMUP_ITERS}
+            )
+
+    wrapper_ms = []
+    stage_ms: dict[str, list[float]] = {
+        "preprocess_ms": [],
+        "infer_ms": [],
+        "prefix_embed_ms": [],
+        "prefix_lm_ms": [],
+        "suffix_loop_ms": [],
+        "postprocess_ms": [],
+    }
+    for index in range(MEASURE_ITERS):
+        start = perf_counter()
+        actions = runner.run_once(images=images, prompt=prompt, state=state, delay=0, action_prefix=None)
+        wrapper_ms.append((perf_counter() - start) * 1000.0)
+        for key in stage_ms:
+            stage_ms[key].append(float(runner.metadata[key]))
+        if show_progress:
+            console.print_json(
+                data={"event": "latency_progress", "phase": "measure", "done": index + 1, "total": MEASURE_ITERS}
+            )
+
+    metadata = dict(runner.metadata)
+    metadata["output_shape"] = list(actions.shape)
+    metadata["wrapper_ms"] = float(sum(wrapper_ms) / len(wrapper_ms))
+    for key, values in stage_ms.items():
+        metadata[key] = float(sum(values) / len(values))
+    return metadata
+
+
 def _run_fastwam_latency(*, model_dir: Path | None, prompt: str) -> dict:
     show_progress = os.environ.get("PICPP_LATENCY_PROGRESS") == "1"
     rng = np.random.default_rng(SEED)
@@ -417,6 +460,8 @@ def run_latency(*, model: str, model_dir: Path | None, prompt: str) -> int:
         metadata = _run_pi06_airbot_latency(model_dir=model_dir, prompt=prompt)
     elif model == "pi06_heterogeneous":
         metadata = _run_pi06_heterogeneous_latency(model_dir=model_dir, prompt=prompt)
+    elif model == "pi06_rtc":
+        metadata = _run_pi06_rtc_latency(model_dir=model_dir, prompt=prompt)
     elif model == "fastwam":
         metadata = _run_fastwam_latency(model_dir=model_dir, prompt=prompt)
     elif model == "semanticvla":
