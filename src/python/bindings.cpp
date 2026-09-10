@@ -290,6 +290,13 @@ PYBIND11_MODULE(_native, m) {
           request.embodiment_id =
               HostTensorFromArray("embodiment_id", DictArray(tensors, "embodiment_id"));
         }
+        if (tensors.contains("delay")) {
+          request.delay = HostTensorFromArray("delay", DictArray(tensors, "delay"));
+        }
+        if (tensors.contains("action_prefix")) {
+          request.action_prefix =
+              HostTensorFromArray("action_prefix", DictArray(tensors, "action_prefix"));
+        }
         pi_cpp::Pi05RunResult result;
         ThrowIfError(runner.RunOnce(request, &result));
         return result;

@@ -35,6 +35,8 @@ inline constexpr std::string_view kSuffixStepInputTimestep = "timestep";
 inline constexpr std::string_view kSuffixStepInputDt = "dt";
 inline constexpr std::string_view kSuffixStepInputState = "state";
 inline constexpr std::string_view kSuffixStepInputEmbodimentId = "embodiment_id";
+inline constexpr std::string_view kSuffixStepInputDelay = "delay";
+inline constexpr std::string_view kSuffixStepInputActionPrefix = "action_prefix";
 inline constexpr std::string_view kSuffixStepOutputXTNext = "x_t_next";
 
 inline constexpr int kDefaultActionDim = 14;

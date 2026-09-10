@@ -29,6 +29,11 @@ struct Pi05OfflineRequest {
   HostTensor x_t;
   HostTensor state;
   HostTensor embodiment_id;
+  // RTC (real-time chunking): the executed action prefix and its length.
+  // delay [1] int32, action_prefix [1, horizon, action_dim] float32 in the
+  // same quantile-normalized space as x_t. Empty for non-RTC models.
+  HostTensor delay;
+  HostTensor action_prefix;
 };
 
 struct Pi05RunResult {
@@ -79,8 +84,12 @@ class Pi05OfflineRunner {
   runtime::DeviceTensor dt_;
   runtime::DeviceTensor state_;
   runtime::DeviceTensor embodiment_id_;
+  runtime::DeviceTensor delay_;
+  runtime::DeviceTensor action_prefix_;
   bool has_state_input_ = false;
   bool has_embodiment_input_ = false;
+  bool has_delay_input_ = false;
+  bool has_action_prefix_input_ = false;
   std::size_t suffix_x_t_input_index_ = 0;
   std::size_t suffix_x_t_next_output_index_ = 0;
 };
