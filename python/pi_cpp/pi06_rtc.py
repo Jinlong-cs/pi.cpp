@@ -158,7 +158,9 @@ class Pi06RtcRunnerWrapper(Pi06HeterogeneousRunnerWrapper):
                 np.zeros((1, self.spec.action_horizon, self.spec.internal_action_dim), dtype=np.float32)
             )
         result = self._runner.run_once(resolved)
+        postprocess_start = __import__("time").perf_counter()
         actions = self._postprocess_actions(result.action)
+        postprocess_ms = (__import__("time").perf_counter() - postprocess_start) * 1000.0
         self.metadata = {
             "model": "pi06_rtc",
             "manifest_schema": self.manifest_schema,
@@ -177,6 +179,8 @@ class Pi06RtcRunnerWrapper(Pi06HeterogeneousRunnerWrapper):
             "action_dim": self.spec.raw_action_dim,
             "delay": int(resolved["delay"][0]),
             "input_shapes": {name: list(array.shape) for name, array in resolved.items()},
+            "preprocess_ms": 0.0,
+            "postprocess_ms": postprocess_ms,
             **result.to_dict(),
         }
         return actions
@@ -212,7 +216,9 @@ class Pi06RtcRunnerWrapper(Pi06HeterogeneousRunnerWrapper):
         }
         preprocess_ms = (__import__("time").perf_counter() - preprocess_start) * 1000.0
         result = self._runner.run_once(tensors)
+        postprocess_start = __import__("time").perf_counter()
         actions = self._postprocess_actions(result.action)
+        postprocess_ms = (__import__("time").perf_counter() - postprocess_start) * 1000.0
         self.metadata = {
             "model": "pi06_rtc",
             "manifest_schema": self.manifest_schema,
@@ -232,6 +238,7 @@ class Pi06RtcRunnerWrapper(Pi06HeterogeneousRunnerWrapper):
             "delay": int(tensors["delay"][0]),
             "input_shapes": {name: list(array.shape) for name, array in tensors.items()},
             "preprocess_ms": preprocess_ms,
+            "postprocess_ms": postprocess_ms,
             **result.to_dict(),
         }
         return actions
