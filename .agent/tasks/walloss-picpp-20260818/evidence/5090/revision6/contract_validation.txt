@@ -1,0 +1,6 @@
+OK: task walloss-picpp-20260818 revision 6 with 12 work package(s) and 26 gate(s)
+
+Command:
+python3 /Users/wujinlong/.codex/skills/agent-workflow-guardrails/scripts/validate_task_contract.py pi.cpp/.agent/tasks/walloss-picpp-20260818/contract.json
+
+Validated locally on 2026-08-20 CST before any Revision 6 remote write or mixed-EP inference.

@@ -1,0 +1,37 @@
+{
+  "schema_version": "walloss.revision7.capacity.v1",
+  "status": "planned_not_executed",
+  "audit_time": "2026-08-21T18:53:20+08:00",
+  "hosts": {
+    "5090-zem": {
+      "artifact_root": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export",
+      "free_bytes_observed": 335894216704,
+      "free_bytes_unit": "bytes",
+      "required_gpu_state": "no non-task owner process",
+      "observed_gpu_state": "blocked by PID 365367 DStereo training"
+    },
+    "agx-test": {
+      "artifact_root": "/root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine",
+      "free_bytes_observed": 70223773696,
+      "free_bytes_unit": "bytes",
+      "rootfs_free_bytes_observed": 3898892288,
+      "rootfs_policy": "forbidden for artifacts and scratch",
+      "existing_rev3_export_bytes_approx": 62277025792,
+      "required_margin": "candidate package plus serialized engines, timing caches, logs and target-local temporary build data must fit on NVMe"
+    }
+  },
+  "known_candidate_budget_bytes": {
+    "checkpoint": 8331486672,
+    "v18_onnx_external_data_package": 9878423552,
+    "prior_pytorch_tensors": 406847488,
+    "pinned_source_and_scripts": 4194304,
+    "notes": "These are planning values from the prior preflight; actual candidate and engine sizes must be measured after freeze."
+  },
+  "stop_conditions": [
+    "5090 has another owner's GPU process",
+    "candidate is not immutable and hash-complete",
+    "AGX NVMe budget lacks safety margin",
+    "any artifact would land on rootfs, /tmp or /dev/shm",
+    "any command needs to stop/restart/interfere with another process"
+  ]
+}

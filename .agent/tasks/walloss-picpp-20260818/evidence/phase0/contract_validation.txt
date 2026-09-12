@@ -1,0 +1,13 @@
+checked_at=2026-08-18T18:17:40+08:00
+command=python3 /Users/wujinlong/.codex/skills/agent-workflow-guardrails/scripts/validate_task_contract.py .agent/tasks/walloss-picpp-20260818/contract.json
+result=OK: task walloss-picpp-20260818 revision 1 with 9 work package(s) and 15 gate(s)
+json_parse=contract.json, acceptance.json, and all Phase 0 JSON evidence passed jq parsing
+diff_check=git diff --check exited zero
+
+contract_sha256=5eb1328c57d3ed3c549f61c6437ab3213124d6b97d29f4b89005ec735a0cf668
+checkpoint_manifest_sha256=d65f0cc69d3447c2988ada8d90182bdf5ebe89ebea67b7763f0c0364eeb95718
+hardware_contract_sha256=a75d824bf73f87ca40cacec85caa2c514805ba189f25649f0e99bc18869a6b22
+repo_audit_sha256=c8702b3a73be78d3cf96631e48bdb16ffb6524e943ce2f1b3c0cc33690e6ae44
+software_contract_sha256=ca3ac7215bba0118c6bb7802146be3c74e82a53695d794f7f00ae6bccdbc9e3c
+open_blockers_sha256=86e5edbbb28944f1e6b0641e52ef59d2ef0b594f28c033dc3243a49601c54a31
+resource_audit_sha256=6a04907783dc28daf188b328dc58cf83caa4df9aafc463ec2360eabdea016580

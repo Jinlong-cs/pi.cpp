@@ -1,0 +1,27 @@
+{
+  "providers": [
+    "AzureExecutionProvider",
+    "CPUExecutionProvider"
+  ],
+  "stages": {
+    "postfix_step": {
+      "exception": "NotImplemented",
+      "message": "[ONNXRuntimeError] : 9 : NOT_IMPLEMENTED : Could not find an implementation for Expand(13) node with name '/model/layers.0/Expand'",
+      "seconds": 0.98,
+      "status": "session_failed"
+    },
+    "prefill": {
+      "exception": "NotImplemented",
+      "message": "[ONNXRuntimeError] : 9 : NOT_IMPLEMENTED : Could not find an implementation for Expand(13) node with name '/model/layers.0/Expand'",
+      "seconds": 3.18,
+      "status": "session_failed"
+    },
+    "prefix_embed": {
+      "exception": "NotImplemented",
+      "message": "[ONNXRuntimeError] : 9 : NOT_IMPLEMENTED : Could not find an implementation for MatMul(13) node with name '/visual/patch_embed/MatMul'",
+      "seconds": 2.1,
+      "status": "session_failed"
+    }
+  },
+  "version": "1.23.2"
+}

@@ -1,0 +1,22 @@
+Command:
+python3 /Users/wujinlong/.codex/skills/agent-workflow-guardrails/scripts/validate_task_contract.py \
+  pi.cpp/.agent/tasks/walloss-picpp-20260818/drafts/revision7/contract.json \
+  pi.cpp/.agent/tasks/walloss-picpp-20260818/drafts/revision7/acceptance.json
+
+Result:
+OK: task walloss-picpp-20260818-revision7 revision 7 with 6 work package(s) and 12 gate(s)
+
+Final identities:
+contract.json SHA256 1d42499ccdefda7efc8bb4f6221cc0c52bb2194b3db3905e845ecc9b0b89ae37
+acceptance.json SHA256 a72fa765a75d62e3a8dce3b242df3430596ed0df4b07686b290d404e0379999a
+root_cause_decision_20260824.md SHA256 66a442dfa7a8d93c09301b1e8ecda40ab3910a958d5ddfca2e2804a6e1f108bd
+
+Lifecycle:
+contract status: blocked
+acceptance decision: blocked
+
+Blocking result:
+- revision7-reference-fixture-completeness: failed because no real held-out/paired fixture exists.
+- V18 prefix/prefill parity: rejected by the passed diagnostic gates.
+- candidate lineage/freeze: skipped.
+- AGX and Revision 8: pending and unexecuted.

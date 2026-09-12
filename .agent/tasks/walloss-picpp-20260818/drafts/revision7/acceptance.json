@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "task_id": "walloss-picpp-20260818-revision7",
+  "contract_revision": 7,
+  "decision": "blocked",
+  "gates": [
+    {
+      "id": "revision7-design-review",
+      "claim": "The user authorizes the Revision 7 staged execution plan while preserving all model, artifact, process, and evidence boundaries.",
+      "surface": "review",
+      "executor": "human",
+      "blocking": true,
+      "approval_required": true,
+      "approval": {"status": "approved", "approved_by": "human owner", "approved_at": "2026-08-21T15:55:00+08:00"},
+      "check": {"kind": "review", "command_or_review": "Review revision7_delta.md and the Revision 7 contract before execution.", "working_directory": ".agent/tasks/walloss-picpp-20260818"},
+      "expected": "The human owner explicitly requests execution of Revision 7 and Revision 8 according to the approved plan.",
+      "evidence_required": ["user authorization in this task"],
+      "result": {"status": "passed", "observed": "The human owner requested execution of Revision 7 and Revision 8 according to the previously established plan; operational stop conditions and separate high-risk gates remain effective.", "evidence": ["user message: ok，请你按照计划开始完成revision 7 和 revision 8"], "residual_risk": "This design approval does not override resource conflicts or independently gated 5090 inference, AGX build, service, closed-loop, or final promotion.", "verified_by": "Codex primary agent", "verified_at": "2026-08-21T17:43:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-reference-fixture-completeness",
+      "claim": "Calibration and held-out pinned PyTorch fixtures are self-consistent, BF16 bit-preserving, and include all stage outputs, 72 KV tensors, x1..x10, normalized and final actions.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Validate fixture lineage, public stage handoff tensors, BF16 identity, split separation, shape, dtype, finite values and hashes.", "working_directory": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export"},
+      "expected": "Every required tensor and manifest field exists, hashes reproduce, shared stage tensors are bit exact, and calibration and held-out inputs are disjoint.",
+      "evidence_required": ["fixture manifest", "BF16 round-trip", "x1..x10 inventory"],
+      "result": {"status": "failed", "observed": "The calibration fixture is complete and finite with 36 nonzero KV layers, 72 KV tensors, x1..x10, step1..step9, exact stage bridges and 146 BF16 bit-preserving round trips. However, fixture_integrity ran with paired_fixture.requested=false and no independent real held-out fixture exists, so the calibration-plus-held-out completeness claim fails.", "evidence": ["remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/reference/calibration/fixture_integrity_v3.json", "remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/diagnostic/same_host/torch211/attempt1/profiles/recovered_fixture_integrity.json", "evidence/5090/revision7/root_cause_decision_20260824.md"], "residual_risk": "Single-fixture evidence cannot establish held-out parity, split distinctness, candidate freeze, AGX readiness, or deployment quality.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-5090-execution-approval",
+      "claim": "A fresh live audit proves 5090-zem is conflict-free and the user authorizes bounded Revision 7 reference and diagnostic execution in the named directory.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "approved", "approved_by": "human owner", "approved_at": "2026-08-24T11:20:23+08:00"},
+      "check": {"kind": "command", "command_or_review": "Review exact host/path/process/storage/container and command manifest, then execute only after approval.", "working_directory": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export"},
+      "expected": "No other owner's active GPU process and enough task-local storage; exact commands and assets are approved.",
+      "evidence_required": ["fresh resource audit", "human approval", "command manifest"],
+      "result": {"status": "passed", "observed": "The human owner approved bounded Revision 7 reference recovery and diagnostics on 5090-zem in the named fresh directory. The 2026-08-24 live audit found no compute owner/process and sufficient project storage.", "evidence": ["user approval: bounded fixture recovery, teacher-forced prefill, same-host PyTorch ladder and 2x2 prefix/prefill diagnostics only", "evidence/revision7/resource_audit_20260824T1105+0800.md", "evidence/revision7/execution_manifest_20260821.md"], "residual_risk": "AGX transfer/build/parity, Revision 8, latency, server/client and closed-loop remain explicitly unapproved; candidate freeze is still pending.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T11:20:23+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-teacher-forced-prefill",
+      "claim": "v18 prefill is independently evaluated from saved PyTorch prefill inputs, with x1 and all 72 KV tensors compared under the frozen thresholds.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Run teacher-forced prefill without consuming ORT prefix output.", "working_directory": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export"},
+      "expected": "Shape and finite gates pass, and per-tensor metrics identify whether prefill independently passes or the first failing boundary.",
+      "evidence_required": ["teacher-forced prefill JSON", "all 72 KV metrics"],
+      "result": {"status": "passed", "observed": "Teacher-forced V18 prefill completed for both the older AGX-derived inputs and the current 5090 PyTorch golden. In both cases x1 passed and all 72 KV tensors were finite/nonzero, but only layer 0 key/value passed (2/72); the current-golden worst KV relative L2 was 0.590079 with cosine 0.824476. This passes the diagnostic execution/first-boundary claim while proving V18 prefill numerical parity fails.", "evidence": ["remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/diagnostic/calibration_teacher_forced_prefill.json", "remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/diagnostic/calibration_teacher_forced_prefill_5090golden.json", "evidence/5090/revision7/root_cause_decision_20260824.md"], "residual_risk": "The exact failing exported operator inside prefill remains unidentified, and no held-out fixture was tested.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-root-cause-decision",
+      "claim": "The same-host PyTorch ladder and 2x2 prefix/prefill matrix locate the first drift boundary and justify retain-v18, minimal-v19, or reject.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "review", "command_or_review": "Review token-region, decoder-layer, original/export-patched/ORT and 2x2 metrics.", "working_directory": ".agent/tasks/walloss-picpp-20260818/evidence/5090/revision7"},
+      "expected": "One evidence-backed candidate decision is recorded without threshold or ABI changes.",
+      "evidence_required": ["root-cause report", "2x2 matrix", "same-host ladder"],
+      "result": {"status": "passed", "observed": "Torch 2.11 and 2.8 same-host ladders and PT/ORT 2x2 matrices completed sequentially. Unpatched-to-export-patched PyTorch was exact in both versions. V18 ORT prefix drift localized to prefill_inputs_embeds image tokens, while ORT prefill failed layers 1..35 KV even on correct PyTorch prefix inputs. Torch-version drift exists but does not explain the reproduced ORT failure. Decision: reject V18 and block candidate freeze; do not create V19 without operator-level localization.", "evidence": ["evidence/5090/revision7/root_cause_decision_20260824.md", "remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/diagnostic/same_host/torch211/attempt1/same_host_prefix_prefill_diagnostics.json", "remote:/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/diagnostic/same_host/torch28/attempt1/same_host_prefix_prefill_diagnostics.json"], "residual_risk": "The stage boundary is localized but the specific ONNX exporter/lowering operator defect is not; a V19 change would require a new reviewed diagnostic design.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-candidate-lineage",
+      "claim": "The selected v18 or v19 derives from pinned source/checkpoint and one documented hypothesis, with all code and artifact hashes recorded.",
+      "surface": "static", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Verify source manifest, export command, external data, ONNX checker, fixed IO and fixture parity.", "working_directory": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export"},
+      "expected": "All lineage and structural checks reproduce and no unregistered file affects the package.",
+      "evidence_required": ["source manifest", "export manifest", "parity results"],
+      "result": {"status": "skipped", "observed": "No candidate was selected because V18 failed prefix and prefill parity and no specific exporter defect authorized a V19 repair.", "evidence": ["evidence/5090/revision7/root_cause_decision_20260824.md"], "residual_risk": "Candidate lineage remains absent by design.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-candidate-freeze",
+      "claim": "Exactly one complete candidate package is immutable and ready for checksum transfer.",
+      "surface": "static", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Generate and independently verify a sorted relative-path size/SHA256 tree and aggregate hash.", "working_directory": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export"},
+      "expected": "One candidate ID, one complete manifest, and a reproducible aggregate hash exist.",
+      "evidence_required": ["candidate manifest", "aggregate SHA256"],
+      "result": {"status": "skipped", "observed": "Candidate freeze was not executed because the upstream fixture-completeness and V18 numerical routes failed.", "evidence": ["evidence/5090/revision7/root_cause_decision_20260824.md"], "residual_risk": "There is no package authorized for transfer or AGX build.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-revision7-build-approval",
+      "claim": "The user authorizes exact candidate transfer, parser-only ingest and target TensorRT build after a fresh AGX capacity/process audit.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Review candidate hash, path, space budget, process ownership and exact parser/build commands.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine"},
+      "expected": "The exact frozen candidate and fresh target resources are approved before any engine build.",
+      "evidence_required": ["human approval", "candidate hash", "fresh AGX audit", "capacity budget", "commands"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-revision7-onnx-ingest",
+      "claim": "AGX receives the exact candidate and TensorRT parses every fixed-shape stage without unapproved fallback or plugin.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Verify transfer hashes and parser-only ingest for postfix_step, prefix_embed and prefill.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine"},
+      "expected": "All hashes reproduce and each stage parses with exact names, shapes, dtypes and no hidden fallback.",
+      "evidence_required": ["transfer manifest", "parser logs"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-revision7-engine-build",
+      "claim": "Target TensorRT 10.3 builds the three Wall-OSS BF16 engines on SM87 with recorded recipes, tactics, workspace and hashes.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Build postfix_step, prefix_embed and prefill in that order using the audited target-local trtexec interface.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine"},
+      "expected": "All engines build and deserialize with fixed IO and explicit BF16; unknown dtype or unapproved conversion fails visibly.",
+      "evidence_required": ["build commands", "logs", "engine hashes", "layer/tactic information"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-revision7-engine-parity",
+      "claim": "Target engines match the pinned PyTorch golden across teacher-forced stages, all 72 KV tensors, x1..x10, held-out fixtures and final actions.",
+      "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "command", "command_or_review": "Run target TensorRT stage/KV/recursive-D10 parity directly against the pinned PyTorch golden.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine"},
+      "expected": "Exact shapes, finite outputs, complete nonzero KV and all inherited numerical thresholds pass for calibration and held-out inputs.",
+      "evidence_required": ["engine IO manifest", "stage metrics", "72 KV metrics", "x1..x10", "final action metrics"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "revision7-engine-feasibility-decision",
+      "claim": "The Revision 7 evidence supports either engine-level feasibility for Revision 8 or an explicit early rejection.",
+      "surface": "review", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "review", "command_or_review": "Review every blocking Revision 7 gate and publish the bounded decision and rollback.", "working_directory": ".agent/tasks/walloss-picpp-20260818/evidence/revision7"},
+      "expected": "Revision 8 is unlocked only by a passed target engine parity; otherwise a readable rejection report ends the lane.",
+      "evidence_required": ["feasibility decision", "residual risks", "rollback"],
+      "result": {"status": "passed", "observed": "Revision 7 ends in an explicit early rejection of V18 and a blocked candidate-freeze state. Revision 8 is not unlocked because no frozen candidate or target engine parity exists.", "evidence": ["evidence/5090/revision7/root_cause_decision_20260824.md"], "residual_risk": "A future route requires a new operator-level export-localization design, a real held-out fixture, a new candidate hash, and separate AGX authority.", "verified_by": "Codex primary agent", "verified_at": "2026-08-24T12:50:00+08:00", "waiver_reason": ""}
+    }
+  ],
+  "decided_by": "Codex primary agent",
+  "decided_at": "2026-08-24T12:50:00+08:00",
+  "residual_risks": [
+    "Only one calibration fixture exists; held-out/paired distinctness remains unproven.",
+    "V18 prefix image-token and prefill layer-1-through-layer-35 KV parity fail under both Torch 2.11 and Torch 2.8 controls.",
+    "The exact failing ONNX exporter or runtime operator has not been localized, so a minimal V19 is not justified.",
+    "No candidate was frozen; AGX transfer/build/parity, Revision 8, latency, server/client, closed-loop and promotion remain unexecuted and unauthorized."
+  ]
+}

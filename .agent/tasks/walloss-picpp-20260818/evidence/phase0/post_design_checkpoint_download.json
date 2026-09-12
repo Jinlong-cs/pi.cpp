@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-08-19T10:22:00+08:00",
+  "phase": "post-design-review local implementation input capture",
+  "local_root": "/private/tmp/walloss-hf-b7dc23a",
+  "hub_revision": "b7dc23a82dbf70a65859c9fdd596703234597028",
+  "files": [
+    {"path": "config.json", "size_bytes": 2148, "sha256": "9a64a8d37fa493481e2d3d936985820d8955ee6b1c2bcdedee8654066df36c0a"},
+    {"path": "config.yml", "size_bytes": 1159, "sha256": "43b63cb60c091c85b2fa80a098dbc3a1346bc4ef96001cab56c840ac2c84a4c0"},
+    {"path": "preprocessor_config.json", "size_bytes": 350, "sha256": "f2058c716eef96ccaed1cc1e2d0c08306b62586d535b28d9d08e691b2fab7ca0"},
+    {"path": "tokenizer.json", "size_bytes": 7031645, "sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"},
+    {"path": "tokenizer_config.json", "size_bytes": 7255, "sha256": "4827803832328bf1e43f274f6ccdeffecb3a4c406f51a19a96db404902512fe9"},
+    {"path": "vocab.json", "size_bytes": 2776833, "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"},
+    {"path": "normalizer_action.pth", "size_bytes": 41242, "sha256": "62f3bf32e68f09968c56b88a279a796801f8bef1bb2a7ba88c8fcb343d89ba02"},
+    {"path": "normalizer_propri.pth", "size_bytes": 41242, "sha256": "9f3c34fac521f1ca365993c9dc5b8c6e49aa453605ed996d03078a8e0296b589"},
+    {"path": "model.safetensors", "size_bytes": 8331486672, "sha256": "37f8f327d3f9c27f056ed078db43c0e39b8caf3df0dc0163cdb8cf92c167968a"}
+  ],
+  "checkpoint_header": {
+    "tensor_count": 1061,
+    "decoder_layers": 36,
+    "vision_layers": 32,
+    "embedding": {"name": "model.embed_tokens.weight", "shape": [155765, 2048], "dtype": "BF16"},
+    "action_projection": {"name": "action_preprocessor.action_proj_back.weight", "shape": [26, 1024], "dtype": "F32"},
+    "required_dual_expert_keys_missing": []
+  },
+  "claim_boundary": "This proves local artifact identity and header inventory only. It does not prove strict model load, export parity, ONNX validity, TensorRT buildability, AGX latency, or closed-loop quality."
+}

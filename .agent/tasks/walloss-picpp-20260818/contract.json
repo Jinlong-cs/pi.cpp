@@ -1,0 +1,388 @@
+{
+  "schema_version": 1,
+  "task_id": "walloss-picpp-20260818",
+  "contract_revision": 6,
+  "status": "draft",
+  "objective": "Integrate Wall-OSS-0.5 as a first-class persistent pi.cpp backend and prove its fixed-contract TensorRT deployment, correctness, latency, server/client behavior, and closed-loop quality on agx-test without weakening the model or accepted pi.cpp baselines.",
+  "non_goals": [
+    "Do not train or fine-tune Wall-OSS in this task.",
+    "Do not treat Mac CPU/MPS or upstream PyTorch timing as AGX TensorRT latency evidence.",
+    "Do not use an implicit PyTorch, CUDA-op, attention, tokenizer, normalizer, or runtime fallback in the production path.",
+    "Do not overwrite accepted pi.cpp packages, engines, HF caches, verify directories, or active service directories.",
+    "Do not restart services, stop processes, run robot control, or run long closed-loop evaluations before their explicit gates are approved.",
+    "Revision 5 authorizes no remote action until its named human gate is approved; 5090 ORT CUDA parity, AGX TensorRT build, runtime integration, latency, service, closed-loop evaluation, and promotion remain separate claims and gates.",
+    "Revision 6 mixed CUDA/CPU execution is diagnostic only. It cannot run inference until both the design and the exact node/type/provider placement manifest receive their named human approvals, and it cannot unlock AGX build, latency, service, closed-loop or promotion."
+  ],
+  "source": {
+    "repo": "/Users/wujinlong/Desktop/Discover/tinyaction/pi.cpp",
+    "base_commit": "a1b1571e5f26692463412cf9065ebd3d547a2f6d",
+    "worktree": "/Users/wujinlong/Desktop/Discover/tinyaction/worktrees/pi.cpp-walloss-picpp-20260818 (branch codex/walloss-picpp-20260818)"
+  },
+  "scope": {
+    "owned_paths": [
+      ".agent/tasks/walloss-picpp-20260818/contract.json",
+      ".agent/tasks/walloss-picpp-20260818/acceptance.json",
+      ".agent/tasks/walloss-picpp-20260818/design",
+      ".agent/tasks/walloss-picpp-20260818/evidence/revision5",
+      ".agent/tasks/walloss-picpp-20260818/evidence/5090",
+      ".agent/tasks/walloss-picpp-20260818/evidence/phase0",
+      ".agent/tasks/walloss-picpp-20260818/evidence/agx",
+      ".agent/tasks/walloss-picpp-20260818/evidence/server",
+      ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop",
+      ".agent/tasks/walloss-picpp-20260818/report.md",
+      "python/pi_cpp/walloss",
+      "recipes/walloss",
+      "include/pi_cpp/runtime/walloss_contract.hpp",
+      "include/pi_cpp/runtime/walloss_offline.hpp",
+      "src/runtime/walloss_offline_tensorrt.cpp",
+      "src/python/bindings.cpp",
+      "python/pi_cpp/runner_wrapper.py",
+      "python/pi_cpp/server/policy.py",
+      "python/pi_cpp/commands/eval.py",
+      "python/pi_cpp/commands/latency.py",
+      "python/pi_cpp/commands/server.py",
+      "python/pi_cpp/commands/client.py",
+      "python/pi_cpp/cli.py",
+      "python/pi_cpp/tui.py",
+      "python/pi_cpp/__init__.py",
+      "CMakeLists.txt",
+      "Makefile"
+    ],
+    "forbidden_paths": [
+      "assets/pi05_libero",
+      "assets/fastwam_libero",
+      "assets/starvla_libero",
+      "assets/smolvla_libero",
+      ".git",
+      ".venv"
+    ]
+  },
+  "inputs": [
+    "pi.cpp base feat/v0.2-optimization-sdk at a1b1571e5f26692463412cf9065ebd3d547a2f6d",
+    "Wall-X source pinned to 6764e8f12f320819e86d5476b3ed68fb8f45b43c",
+    "Hugging Face x-square-robot/wall-oss-0.5 pinned to b7dc23a82dbf70a65859c9fdd596703234597028",
+    "Wall-OSS checkpoint contract: two 448px camera views, action horizon 32, action dimension 26, state dimension 26, dof_mask [1,32,26], ten flow steps ending at 0.999, external deterministic initial noise required for export and parity, and request-constant v_padding = padding_action - x0 reused for all postfix steps",
+    "Target agx-test: Jetson AGX Orin Developer Kit, L4T R36.5.0, CUDA toolkit 12.6.68, TensorRT 10.3.0",
+    "Human-approved revision 4 AGX export-only lane under /root/wujinlong/nvme/picpp_walloss_20260818/revision3_export/ for checkpoint staging, pinned PyTorch reference, wrapper parity, ONNX export, ONNX checker, and ONNX Runtime parity",
+    "Frozen v18 ONNX candidate under /root/wujinlong/nvme/picpp_walloss_20260818/revision3_export/onnx_real_legacy_v18/ with three static-shape stages, 434 external-data files, and real PyTorch stage fixtures",
+    "Revision 5 planned 5090 ORT CUDA root /home/zem/wujinlong/picpp_walloss_20260818/revision5_ort_cuda/ and planned AGX TensorRT root /root/wujinlong/nvme/picpp_walloss_20260818/revision5_engine/, both subject to live ownership/resource audit and independent human approval",
+    "Revision 6 planned diagnostic root /home/zem/wujinlong/picpp_walloss_20260818/revision6_mixed_ep/, with the Revision 5 v18 package mounted read-only and no authority over AGX or deployment paths"
+  ],
+  "outputs": [
+    "Frozen Wall-OSS preprocessing, normalization, noise, stage, tensor, dtype, cache, and output contract",
+    "Reproducible checkpoint-to-ONNX exporter with external noise and no hidden model-semantic changes",
+    "Target-built TensorRT engine package under /root/wujinlong/nvme/picpp_walloss_20260818/<revision>/",
+    "Fail-fast C++ runtime and first-class picpp Python/CLI/server integration",
+    "Mac structural oracle, AGX PyTorch export evidence, 5090 ORT CUDA export parity, AGX TensorRT engine parity, offline runtime parity, standalone latency, server/client timing, and closed-loop evidence kept as distinct claims",
+    "Final engineering report with accepted/rejected routes, artifact hashes, residual risks, and rollback path"
+  ],
+  "interfaces": [
+    {
+      "id": "walloss-model-contract",
+      "owner_work_package": "wp-01-design",
+      "input": "Pinned Wall-X and Wall-OSS source/checkpoint metadata plus fixed observation, prompt, state, noise, scheduler, normalization, cache, and action semantics.",
+      "output": "Versioned design contract defining exact tensors, shapes, dtypes, stage split, deterministic parity inputs, and fail-fast invariants.",
+      "consumers": [
+        "wp-02-export",
+        "wp-02b-5090-ort-cuda-parity",
+        "wp-03-cpp-runtime",
+        "wp-04-python-integration",
+        "wp-05a-agx-engine-feasibility",
+        "wp-05-agx-engine",
+        "wp-06-server-client",
+        "wp-07-closed-loop"
+      ],
+      "change_control": "Any change to cameras, resolution, prompt, horizon, action/state dimension, flow steps, noise, normalization, attention/cache semantics, or output layout increments contract_revision and stops dependent work."
+    },
+    {
+      "id": "walloss-engine-package",
+      "owner_work_package": "wp-02-export",
+      "input": "Frozen model contract and pinned checkpoint.",
+      "output": "ONNX stage artifacts, IO manifests, normalization/tokenizer assets, build recipe, and hashes consumed by the target TensorRT build and C++ runtime.",
+      "consumers": [
+        "wp-02b-5090-ort-cuda-parity",
+        "wp-03-cpp-runtime",
+        "wp-05a-agx-engine-feasibility",
+        "wp-05-agx-engine"
+      ],
+      "change_control": "Tensor names, shapes, dtypes, stage boundaries, cache layout, or artifact layout changes require design-owner review and a contract revision."
+    },
+    {
+      "id": "picpp-walloss-policy-api",
+      "owner_work_package": "wp-04-python-integration",
+      "input": "pi.cpp observation with named camera images, state vector, prompt, and optional caller-supplied deterministic initial noise.",
+      "output": "Float32 action chunk with fixed [32,26] model layout plus separately measured policy/server timing metadata.",
+      "consumers": [
+        "wp-06-server-client",
+        "wp-07-closed-loop"
+      ],
+      "change_control": "No silent camera remap, padding, truncation, normalization substitution, backend fallback, step reduction, or output serialization change is permitted."
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "wp-00-phase0-audit",
+      "goal": "Freeze live source, checkpoint, hardware, software, storage, process-ownership, and initial blocker evidence before any implementation or remote artifact creation.",
+      "depends_on": [],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/evidence/phase0"
+      ],
+      "inputs": [
+        "Read-only local, GitHub, Hugging Face, and agx-test inspection"
+      ],
+      "outputs": [
+        "Phase 0 audit evidence"
+      ],
+      "acceptance_gate_ids": [
+        "phase0-audit"
+      ]
+    },
+    {
+      "id": "wp-01-design",
+      "goal": "Define and review the complete Wall-OSS exporter, TensorRT stage split, runtime, deterministic parity, latency, and deployment contract.",
+      "depends_on": [
+        "wp-00-phase0-audit"
+      ],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/design"
+      ],
+      "inputs": [
+        "Phase 0 audit",
+        "Pinned source and checkpoint metadata"
+      ],
+      "outputs": [
+        "Reviewed design and tensor contracts"
+      ],
+      "acceptance_gate_ids": [
+        "design-review"
+      ]
+    },
+    {
+      "id": "wp-02-export",
+      "goal": "Implement the checkpoint/tokenizer/normalizer loader and deterministic oracle, then produce and freeze the real checkpoint-to-ONNX package with external initial noise in the approved AGX export-only directory.",
+      "depends_on": [
+        "wp-01-design"
+      ],
+      "owned_paths": [
+        "python/pi_cpp/walloss",
+        "recipes/walloss"
+      ],
+      "inputs": [
+        "walloss-model-contract",
+        "Approved AGX export-only lane at /root/wujinlong/nvme/picpp_walloss_20260818/revision3_export/"
+      ],
+      "outputs": [
+        "walloss-engine-package",
+        "Mac structural oracle, AGX real-checkpoint wrapper evidence, and frozen v18 ONNX package"
+      ],
+      "acceptance_gate_ids": [
+        "exporter-static",
+        "agx-export-approval"
+      ]
+    },
+    {
+      "id": "wp-03-cpp-runtime",
+      "goal": "Implement a fixed-contract fail-fast TensorRT C++ runtime with explicit stage buffers, cache handoff, flow loop, normalization, and timing.",
+      "depends_on": [
+        "wp-01-design",
+        "wp-05a-agx-engine-feasibility"
+      ],
+      "owned_paths": [
+        "include/pi_cpp/runtime/walloss_contract.hpp",
+        "include/pi_cpp/runtime/walloss_offline.hpp",
+        "src/runtime/walloss_offline_tensorrt.cpp",
+        "src/python/bindings.cpp",
+        "CMakeLists.txt",
+        "Makefile"
+      ],
+      "inputs": [
+        "walloss-model-contract",
+        "walloss-engine-package"
+      ],
+      "outputs": [
+        "C++ runtime and Python binding"
+      ],
+      "acceptance_gate_ids": [
+        "cpp-build"
+      ]
+    },
+    {
+      "id": "wp-02b-5090-ort-cuda-parity",
+      "goal": "Reuse the frozen v18 ONNX package on 5090-zem, prove real CUDAExecutionProvider capability and execute staged/KV/recursive-D10 parity without CPU fallback.",
+      "depends_on": ["wp-02-export"],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/evidence/5090/revision5_ort_cuda_decision.md",
+        ".agent/tasks/walloss-picpp-20260818/evidence/5090/ort_cuda_parity.py",
+        ".agent/tasks/walloss-picpp-20260818/evidence/5090/ort_cuda_postfix_parity.py",
+        ".agent/tasks/walloss-picpp-20260818/evidence/5090/ort_cuda_postfix_teacher_d10_parity.json"
+      ],
+      "inputs": ["Frozen v18 ONNX package", "Frozen PyTorch fixtures", "5090-ort-cuda-approval"],
+      "outputs": ["ORT CUDA environment/provider evidence", "stage/KV/D10 parity and stop decision"],
+      "acceptance_gate_ids": ["revision5-design-review", "5090-ort-cuda-approval", "5090-ort-cuda-parity", "export-parity"]
+    },
+    {
+      "id": "wp-02c-5090-mixed-ep-diagnostic",
+      "goal": "Run a strictly bounded diagnostic in which only an exact human-reviewed shape/control node manifest may use CPUExecutionProvider while all numerical model compute stays on CUDAExecutionProvider.",
+      "depends_on": ["wp-02-export"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/5090/revision6"],
+      "inputs": ["Frozen v18 ONNX package mounted read-only", "Frozen PyTorch fixture", "Revision 5 provider-placement evidence", "revision6-design-review", "revision6-placement-review"],
+      "outputs": ["Exact provider/type allowlist manifest", "mixed-EP stage/KV/D10 diagnostic", "claim-bounded stop decision"],
+      "acceptance_gate_ids": ["revision6-design-review", "revision6-placement-manifest", "revision6-placement-review", "5090-mixed-ep-diagnostic"]
+    },
+    {
+      "id": "wp-05a-agx-engine-feasibility",
+      "goal": "After 5090 parity and independent approval, ingest the parity-approved ONNX package and build target-specific TensorRT engines on agx-test, then run engine-level correctness only.",
+      "depends_on": ["wp-02b-5090-ort-cuda-parity"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/agx/revision5"],
+      "inputs": ["Parity-approved v18 or v19 package", "agx-build-approval"],
+      "outputs": ["AGX parser/build manifests, engine hashes, KV and D10 engine parity"],
+      "acceptance_gate_ids": ["agx-build-approval", "agx-onnx-ingest", "agx-engine-build", "agx-engine-parity"]
+    },
+    {
+      "id": "wp-04-python-integration",
+      "goal": "Add Wall-OSS as a first-class picpp runner, policy, CLI, latency, eval, server/client, and TUI model without introducing a parallel registry or fallback path.",
+      "depends_on": [
+        "wp-01-design",
+        "wp-03-cpp-runtime"
+      ],
+      "owned_paths": [
+        "python/pi_cpp/runner_wrapper.py",
+        "python/pi_cpp/server/policy.py",
+        "python/pi_cpp/commands/eval.py",
+        "python/pi_cpp/commands/latency.py",
+        "python/pi_cpp/commands/server.py",
+        "python/pi_cpp/commands/client.py",
+        "python/pi_cpp/cli.py",
+        "python/pi_cpp/tui.py",
+        "python/pi_cpp/__init__.py"
+      ],
+      "inputs": [
+        "walloss-model-contract",
+        "C++ runtime binding"
+      ],
+      "outputs": [
+        "picpp-walloss-policy-api"
+      ],
+      "acceptance_gate_ids": [
+        "python-static"
+      ]
+    },
+    {
+      "id": "wp-05-agx-engine",
+      "goal": "Build engines on agx-test in a fresh NVMe revision directory and measure mechanical validity, offline parity, resource use, per-stage latency, and original picpp latency boundaries.",
+      "depends_on": [
+        "wp-05a-agx-engine-feasibility",
+        "wp-03-cpp-runtime",
+        "wp-04-python-integration"
+      ],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/evidence/agx/runtime"
+      ],
+      "inputs": [
+        "walloss-engine-package",
+        "Target AGX build approval"
+      ],
+      "outputs": [
+        "AGX artifact hashes, build logs, parity, profile, and latency evidence"
+      ],
+      "acceptance_gate_ids": [
+        "agx-build-approval",
+        "agx-engine-smoke",
+        "offline-parity",
+        "standalone-latency"
+      ]
+    },
+    {
+      "id": "wp-06-server-client",
+      "goal": "Validate persistent server startup, repeated requests, reset semantics, memory stability, server inference time, transport/serialization time, and client RTT as separate measurements.",
+      "depends_on": [
+        "wp-05-agx-engine"
+      ],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/evidence/server"
+      ],
+      "inputs": [
+        "picpp-walloss-policy-api",
+        "Accepted AGX engine candidate"
+      ],
+      "outputs": [
+        "Persistent server/client evidence"
+      ],
+      "acceptance_gate_ids": [
+        "server-client-smoke"
+      ]
+    },
+    {
+      "id": "wp-07-closed-loop",
+      "goal": "Run the approved closed-loop ladder with frozen tasks, seeds, initial states, prompts, cameras, noise, flow steps, and episode accounting.",
+      "depends_on": [
+        "wp-06-server-client"
+      ],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop"
+      ],
+      "inputs": [
+        "Accepted server/client candidate",
+        "Separate human approvals for smoke, Gate40, and final400"
+      ],
+      "outputs": [
+        "Closed-loop smoke, Gate40, and final400 evidence"
+      ],
+      "acceptance_gate_ids": [
+        "closed-loop-smoke",
+        "gate40",
+        "final400"
+      ]
+    },
+    {
+      "id": "wp-08-report",
+      "goal": "Produce a reproducible final engineering report and an explicit accept, reject, or research-only decision with rollback instructions.",
+      "depends_on": [
+        "wp-07-closed-loop"
+      ],
+      "owned_paths": [
+        ".agent/tasks/walloss-picpp-20260818/report.md"
+      ],
+      "inputs": [
+        "All gate evidence"
+      ],
+      "outputs": [
+        "Final report and promotion decision"
+      ],
+      "acceptance_gate_ids": [
+        "final-review"
+      ]
+    }
+  ],
+  "integration_owner": "primary Codex agent under user review; no sub-agent owns implementation paths",
+  "constraints": {
+    "safety": [
+      "All AGX artifacts must be written only under /root/wujinlong/nvme/picpp_walloss_20260818/<revision>/.",
+      "Do not write large artifacts to AGX rootfs, /tmp, or /dev/shm.",
+      "Do not stop, restart, or interfere with services or processes without the matching approved gate.",
+      "Do not execute physical robot commands in this task unless a separately approved physical gate is added by contract revision.",
+      "Preserve model cameras, resolution, prompt, state/action layout, horizon, ten flow steps, initial-noise semantics, normalization, and timing boundaries.",
+      "Build TensorRT engines on the target AGX; engines built on Mac or datacenter GPUs are not deployment artifacts."
+    ],
+    "reversibility": "Use a dedicated Git worktree for code, fresh versioned AGX NVMe directories for every candidate, and additive model integration; rollback is selecting the pre-existing pi.cpp binary/model package without deleting any accepted artifact.",
+    "budget": "Phase 0 and Phase 1 are lightweight and read-only/design-only. Checkpoint download, export, AGX build, profiling, server launch, and closed-loop work require their declared gates and must stop on resource conflict or failed upstream gates."
+  },
+  "skill_refs": [
+    "picpp",
+    "ai-infra",
+    "vla-train",
+    "agent-workflow-guardrails",
+    "server-space",
+    "hf-cli"
+  ],
+  "acceptance_file": "acceptance.json",
+  "artifact_root": "/root/wujinlong/nvme/picpp_walloss_20260818/<revision>/",
+  "promotion": {
+    "targets": [
+      "pi.cpp first-class walloss backend",
+      "target-built Wall-OSS AGX engine package",
+      "accepted persistent server configuration"
+    ],
+    "rule": "Promotion requires all blocking gates, exact artifact hashes, no fallback or contract weakening, and explicit human final acceptance; a fast engine or offline parity alone is not deployment acceptance."
+  }
+}
