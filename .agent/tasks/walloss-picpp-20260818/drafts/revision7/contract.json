@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "task_id": "walloss-picpp-20260818-revision7",
+  "contract_revision": 7,
+  "status": "blocked",
+  "objective": "Recover a pinned Wall-OSS PyTorch BF16 golden and freeze one ONNX candidate on 5090-zem, then build and prove or reject its SM87 TensorRT engine package on agx-test without changing the frozen model ABI.",
+  "non_goals": [
+    "Do not implement or run the pi.cpp C++ backend, latency, server/client, closed-loop, or promotion in Revision 7.",
+    "Do not treat ORT provider placement or numerical parity as the production golden or AGX deployment evidence.",
+    "Do not modify the frozen v18 package or any Revision 5/6 evidence.",
+    "Do not create v19 unless a specific exporter graph defect is located first."
+  ],
+  "source": {
+    "repo": "/Users/wujinlong/Desktop/Discover/tinyaction/pi.cpp",
+    "base_commit": "a1b1571e5f26692463412cf9065ebd3d547a2f6d",
+    "worktree": "/Users/wujinlong/Desktop/Discover/tinyaction/worktrees/pi.cpp-walloss-picpp-20260818"
+  },
+  "scope": {
+    "owned_paths": [
+      ".agent/tasks/walloss-picpp-20260818/drafts/revision7",
+      ".agent/tasks/walloss-picpp-20260818/evidence/revision7",
+      ".agent/tasks/walloss-picpp-20260818/evidence/5090/revision7",
+      ".agent/tasks/walloss-picpp-20260818/evidence/agx/revision7"
+    ],
+    "forbidden_paths": [
+      ".agent/tasks/walloss-picpp-20260818/evidence/5090/revision6",
+      "assets/pi05_libero",
+      "assets/fastwam_libero",
+      "assets/starvla_libero",
+      "assets/smolvla_libero",
+      ".git"
+    ]
+  },
+  "inputs": [
+    "Wall-X commit 6764e8f12f320819e86d5476b3ed68fb8f45b43c",
+    "Hugging Face x-square-robot/wall-oss-0.5 revision b7dc23a82dbf70a65859c9fdd596703234597028",
+    "Checkpoint SHA256 37f8f327d3f9c27f056ed078db43c0e39b8caf3df0dc0163cdb8cf92c167968a",
+    "Frozen v18 package and real PyTorch fixture SHA256 681e62ba720cc4b7830d1d7b5f4e6c7afb564ad0705862245f3cfa84433f9c45",
+    "Revision 5 and 6 rejected diagnostic evidence"
+  ],
+  "outputs": [
+    "Pinned calibration and held-out PyTorch golden with BF16 bit identity and x1..x10",
+    "Teacher-forced prefill and prefix/prefill root-cause evidence",
+    "One immutable v18 or minimally repaired v19 candidate manifest",
+    "Target-built AGX TensorRT engine package or an early rejection report"
+  ],
+  "interfaces": [
+    {
+      "id": "revision7-candidate-package",
+      "owner_work_package": "wp-r7-candidate-freeze",
+      "input": "Frozen model ABI, pinned source/checkpoint, self-consistent calibration and held-out PyTorch golden.",
+      "output": "Exactly one immutable ONNX package and complete relative-path SHA256 tree.",
+      "consumers": ["wp-r7-agx-engine", "wp-r7-agx-parity"],
+      "change_control": "Any dtype, stage, tensor, shape, KV, D10, x0, normalization, or candidate file change invalidates the freeze and requires a new contract revision."
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "wp-r7-design",
+      "goal": "Freeze the Revision 7 topology, numerical thresholds, safety boundaries, and evidence claims.",
+      "depends_on": [],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/drafts/revision7"],
+      "inputs": ["Revision 6 handoff and evidence"],
+      "outputs": ["Validated approved Revision 7 contract"],
+      "acceptance_gate_ids": ["revision7-design-review"]
+    },
+    {
+      "id": "wp-r7-reference-recovery",
+      "goal": "Audit both hosts, validate fixture lineage and BF16 identity, recover calibration and held-out PyTorch references, and add x1..x10.",
+      "depends_on": ["wp-r7-design"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/revision7/reference"],
+      "inputs": ["Pinned source, checkpoint, processor, v18 and fixture"],
+      "outputs": ["Reference manifests and golden completeness evidence"],
+      "acceptance_gate_ids": ["revision7-reference-fixture-completeness"]
+    },
+    {
+      "id": "wp-r7-5090-isolation",
+      "goal": "Run teacher-forced prefill, same-host PyTorch ladder, token/layer drift analysis, and PT/ORT 2x2 matrix in a fresh 5090 directory.",
+      "depends_on": ["wp-r7-reference-recovery"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/5090/revision7"],
+      "inputs": ["Complete pinned golden and 5090 execution approval"],
+      "outputs": ["Teacher-forced metrics and root-cause decision"],
+      "acceptance_gate_ids": ["revision7-5090-execution-approval", "revision7-teacher-forced-prefill", "revision7-root-cause-decision"]
+    },
+    {
+      "id": "wp-r7-candidate-freeze",
+      "goal": "Retain v18 or minimally repair one proven exporter defect into v19, validate all fixtures, and freeze one candidate.",
+      "depends_on": ["wp-r7-5090-isolation"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/revision7/candidate"],
+      "inputs": ["Root-cause decision"],
+      "outputs": ["revision7-candidate-package"],
+      "acceptance_gate_ids": ["revision7-candidate-lineage", "revision7-candidate-freeze"]
+    },
+    {
+      "id": "wp-r7-agx-engine",
+      "goal": "Transfer, verify, ingest, and build the frozen candidate on the target SM87/TensorRT 10.3 host.",
+      "depends_on": ["wp-r7-candidate-freeze"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/agx/revision7/build"],
+      "inputs": ["revision7-candidate-package and explicit AGX build approval"],
+      "outputs": ["Parser/build logs and engine hashes"],
+      "acceptance_gate_ids": ["agx-revision7-build-approval", "agx-revision7-onnx-ingest", "agx-revision7-engine-build"]
+    },
+    {
+      "id": "wp-r7-agx-parity",
+      "goal": "Compare target TensorRT stage, all 72 KV tensors, x1..x10, and final actions directly against the pinned PyTorch golden.",
+      "depends_on": ["wp-r7-agx-engine"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/agx/revision7/parity"],
+      "inputs": ["Target engines and pinned golden"],
+      "outputs": ["Engine parity and feasibility decision"],
+      "acceptance_gate_ids": ["agx-revision7-engine-parity", "revision7-engine-feasibility-decision"]
+    }
+  ],
+  "integration_owner": "primary Codex agent under human acceptance gates",
+  "constraints": {
+    "safety": [
+      "Do not stop or interfere with the root-owned DStereo process currently occupying 5090-zem.",
+      "Write 5090 artifacts only under /home/zem/wujinlong/picpp_walloss_20260818/revision7_export/.",
+      "Write AGX artifacts only under /root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine/.",
+      "Do not use AGX rootfs, /tmp, or /dev/shm for artifacts or build scratch.",
+      "Stop before AGX build if its fresh NVMe capacity budget is insufficient."
+    ],
+    "reversibility": "All artifacts are additive in fresh revision directories; v18, Revision 5/6 evidence, accepted backends, and services remain untouched.",
+    "budget": "5090 execution waits for a conflict-free GPU; AGX build requires a fresh storage budget and exact human approval."
+  },
+  "skill_refs": ["picpp", "ai-infra", "vla-train", "server-space", "agent-workflow-guardrails", "hf-cli"],
+  "acceptance_file": "acceptance.json",
+  "artifact_root": "/home/zem/wujinlong/picpp_walloss_20260818/revision7_export/ and /root/wujinlong/nvme/picpp_walloss_20260818/revision7_engine/",
+  "promotion": {
+    "targets": ["Revision 8 runtime-integration eligibility"],
+    "rule": "Only a passed target TensorRT parity decision may unlock Revision 8; no accepted backend or service is modified by Revision 7."
+  }
+}

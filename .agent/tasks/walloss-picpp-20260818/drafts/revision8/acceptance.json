@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "task_id": "walloss-picpp-20260818-revision8",
+  "contract_revision": 8,
+  "decision": "pending",
+  "gates": [
+    {
+      "id": "revision8-design-review", "claim": "Revision 7 passed and the user approves the frozen runtime API, latency threshold, port/process and evaluation protocol.", "surface": "review", "executor": "human", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "review", "command_or_review": "Review Revision 7 target parity and Revision 8 delta before runtime execution.", "working_directory": ".agent/tasks/walloss-picpp-20260818"},
+      "expected": "Explicit approval after Revision 7 passes.", "evidence_required": ["Revision 7 decision", "human approval", "frozen latency threshold"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "cpp-build", "claim": "The persistent C++ runtime and binding compile and validate the exact BF16/FP16 TensorRT ABI without silent dtype fallback.", "surface": "integration", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run project-native target CMake build and focused runtime checks.", "working_directory": "."},
+      "expected": "Build exits zero and unknown dtype or ABI drift fails visibly.", "evidence_required": ["build command", "output", "source hash"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "python-static", "claim": "Wall-OSS wrapper and all explicit Python dispatch surfaces pass focused static and unit checks.", "surface": "unit", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run focused Python tests, compileall and repository formatter/linter.", "working_directory": "."},
+      "expected": "All focused checks exit zero.", "evidence_required": ["commands", "outputs"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "existing-backend-regression", "claim": "The additive Wall-OSS integration does not alter existing backend CLI, build or import behavior.", "surface": "integration", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run existing backend regression and import/CLI dispatch tests.", "working_directory": "."},
+      "expected": "Existing checks remain green and defaults are unchanged.", "evidence_required": ["regression outputs"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-runtime-validation-approval", "claim": "The user approves the exact frozen source/engine package and bounded AGX smoke, offline and latency commands after a fresh resource audit.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Review source/engine hashes, host/path/resource state and exact commands.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "Explicit approval with conflict-free resources.", "evidence_required": ["human approval", "fresh audit", "hashes", "commands"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "agx-engine-smoke", "claim": "The persistent runner loads and executes exact engines with finite [32,26], complete KV and no fallback.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run uncaptured/captured held-out mechanical smoke.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "Shape, finite, ABI, KV and backend gates pass.", "evidence_required": ["smoke log", "engine hashes", "KV statistics"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "offline-parity", "claim": "The integrated runner preserves Revision 7 stage/KV/D10/final-action parity on calibration and held-out inputs.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run wrapper and C++ runner parity with identical x0 and fixtures.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "All inherited thresholds pass and no wrapper drift is introduced.", "evidence_required": ["offline parity metrics"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "same-model-r0-agx-baseline", "claim": "A same-model upstream PyTorch BF16 AGX baseline is measured on identical inputs/noise and a matching complete-policy boundary, or its absence is explicitly recorded.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Measure R0-AGX-Torch-BF16 with the preregistered protocol.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "A valid distribution exists before any speedup claim; otherwise the report forbids relative speedup.", "evidence_required": ["R0 command", "raw samples", "summary"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "standalone-latency", "claim": "Formal and detailed complete-policy latency compare C0 with same-model R0 under frozen semantics and report stage, transfer and wrapper distributions.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run original picpp latency plus 20-warmup/5-round/100-sample detailed interleaved benchmark.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "The preregistered median threshold passes, p95 does not regress, and all work remains inside declared timing boundaries.", "evidence_required": ["commands", "raw samples", "summary", "tegrastats"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "server-client-smoke", "claim": "An approved task-owned persistent server passes repeated/reset/memory/timing smoke on an unused port.", "surface": "target_hw", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Start only the approved candidate process, run clients, then stop only that process.", "working_directory": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime"},
+      "expected": "No fallback, semantic drift, memory growth or process/port conflict.", "evidence_required": ["approval", "process/port owner", "server/client logs", "timing and memory"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "closed-loop-smoke", "claim": "The approved frozen small closed-loop smoke passes after all earlier gates.", "surface": "closed_loop", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run the approved smoke manifest.", "working_directory": ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop/revision8"},
+      "expected": "All episodes are accounted for with no runtime or action-contract failure.", "evidence_required": ["approval", "manifest", "raw outcomes", "summary"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "gate40", "claim": "The approved frozen Gate40 meets the preregistered success boundary after smoke.", "surface": "closed_loop", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run the approved 40-episode manifest.", "working_directory": ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop/revision8"},
+      "expected": "All 40 episodes are accounted for and threshold passes.", "evidence_required": ["approval", "manifest", "raw outcomes", "summary"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "final400", "claim": "The approved frozen final400 meets the same-model non-inferiority boundary after Gate40.", "surface": "closed_loop", "executor": "machine", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "command", "command_or_review": "Run the approved 400-episode manifest.", "working_directory": ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop/revision8"},
+      "expected": "All 400 episodes are accounted for and aggregate/suite thresholds pass.", "evidence_required": ["approval", "manifest", "raw outcomes", "task and aggregate summaries"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    },
+    {
+      "id": "final-review", "claim": "The complete implementation and evidence justify accept or reject, with explicit promotion scope and rollback.", "surface": "review", "executor": "human", "blocking": true, "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""}, "check": {"kind": "review", "command_or_review": "Review exact hashes, all gate evidence, residual risks and rollback.", "working_directory": ".agent/tasks/walloss-picpp-20260818"},
+      "expected": "The human owner explicitly accepts or rejects and names any allowed promotion.", "evidence_required": ["final report", "final decision", "rollback"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    }
+  ],
+  "decided_by": "",
+  "decided_at": "",
+  "residual_risks": ["Revision 8 cannot execute until Revision 7 passes and its own design review freezes latency and evaluation thresholds."]
+}

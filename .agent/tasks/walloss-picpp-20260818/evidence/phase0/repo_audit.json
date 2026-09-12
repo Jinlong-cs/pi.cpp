@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-08-18T18:10:59+08:00",
+  "local_repo": {
+    "path": "/Users/wujinlong/Desktop/Discover/tinyaction/pi.cpp",
+    "branch": "feat/v0.2-optimization-sdk",
+    "commit": "a1b1571e5f26692463412cf9065ebd3d547a2f6d",
+    "status": "clean",
+    "remote": "git@github.com:Jinlong-cs/pi.cpp.git",
+    "codegraph": "not-present-at-nested-repo-root; used scoped rg and direct source reads",
+    "dispatch_observation": "No single model registry was found. Existing model dispatch is distributed across runner_wrapper.py, server/policy.py, CLI commands, latency, client, TUI, CMake, and Makefile; Wall-OSS integration must follow one explicit owner path rather than add a silent parallel registry."
+  },
+  "wallx_source": {
+    "repository": "https://github.com/X-Square-Robot/wall-x.git",
+    "pinned_commit": "6764e8f12f320819e86d5476b3ed68fb8f45b43c",
+    "pinned_tree": "fa046dbfd191aee2a8d710f9726ce1afcaff2ac1",
+    "commit_message": "fix normalization (#112)",
+    "commit_date": "2026-07-21T07:15:48Z",
+    "current_main_at_audit": "356bc45391c434f22a22f17bd1d0acd56f2acc87",
+    "pin_exists": true,
+    "source_contract_facts": [
+      "requirements.txt pins torch 2.10.0, transformers 5.2.0, and torchdiffeq 0.2.5",
+      "setup.py builds an install-time CUDAExtension named wall_x.model.core.ops._cuda_ext_bin from exported CUDA sources",
+      "inference_mixin.py creates device-side torch.randn noise internally in generate_dllm_action and generate_flow_action; exporter must add an explicit external-noise seam before parity/export claims",
+      "flow inference performs an initial prefill with use_cache=True, crops every prefix KV layer to ar_prefix_length, then runs an Euler ODE loop",
+      "the model uses two token-type experts and custom permute/unpermute plus joint attention projections",
+      "the public CUDAGraph wrapper has lazy capture, batch buckets, shape guards, and naive forward fallback; production picpp must not hide fallback under a success claim",
+      "the websocket server reports server infer time separately but upstream batch policy catches exceptions into error dictionaries; picpp integration must fail-fast instead"
+    ]
+  }
+}

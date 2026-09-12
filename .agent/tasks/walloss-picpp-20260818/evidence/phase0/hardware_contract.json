@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-08-18T18:01:12+08:00",
+  "host_alias": "agx-test",
+  "hostname": "agx-test",
+  "device": "NVIDIA Jetson AGX Orin Developer Kit",
+  "gpu_architecture": "Ampere SM87 assumed from Jetson AGX Orin platform; exact CUDA device query deferred until an approved isolated environment is available",
+  "kernel": "5.15.185-tegra",
+  "l4t_release": "R36.5.0",
+  "os": "Ubuntu 22.04.5 LTS",
+  "memory": {"ram_total": "61 GiB", "ram_available_at_check": "54 GiB", "swap_total": "30 GiB", "swap_used_at_check": "222 MiB"},
+  "power_mode": "MAXN (nvpmodel query read-only)",
+  "clock_snapshot": {"gpu_current_hz": 306000000, "gpu_max_hz": 1300500000, "emc_current_hz": 2133000000, "emc_max_hz": 3199000000, "active_gpu_tpcs": 8},
+  "thermal_snapshot_millicelsius": {"cpu-thermal": 48812, "soc0-thermal": 45468, "soc1-thermal": 46656, "soc2-thermal": 45437, "tj-thermal": 49031},
+  "storage": {"rootfs": {"device": "/dev/mmcblk0p1", "size": "57G", "available": "3.7G", "use_percent": 94}, "nvme": {"device": "/dev/nvme0n1p1", "mount": "/root/wujinlong/nvme", "size": "916G", "available": "166G", "use_percent": 81}},
+  "gpu_owner_check": "fuser on /dev/nvhost-gpu, /dev/nvhost-ctrl-gpu, and /dev/nvidia0 reported no owners; relevant trtexec/picpp/wall/serving/libero process search found none at check time",
+  "safety_note": "This is a point-in-time read-only snapshot. It does not authorize taking ownership of the board or changing power, clocks, services, or processes."
+}

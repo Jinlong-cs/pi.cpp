@@ -1,0 +1,147 @@
+{
+  "claim_limit": "postfix mechanical parity only; not full three-stage parity, held-out export parity, AGX TensorRT parity, latency, server/client, or closed-loop evidence",
+  "fixture_coverage": {
+    "fixture_count": 1,
+    "held_out_fixture": false,
+    "x10_pytorch_reference_available": true,
+    "x1_and_kv_source": "real PyTorch export fixture",
+    "x2_to_x9_pytorch_reference_available": false
+  },
+  "generated_at_epoch": 1787210548.9221318,
+  "kv_tensor_count": 72,
+  "passed": true,
+  "provider": {
+    "node_providers": [
+      "CUDAExecutionProvider"
+    ],
+    "profile": "/work/results/profiles/walloss_postfix_step_2026-08-20_07-21-58.json",
+    "session_create_seconds": 1.3382176291197538,
+    "session_providers": [
+      "CUDAExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "strict_cuda_only": true
+  },
+  "recursive_postfix_x2_to_x10": {
+    "final_x10_metrics": {
+      "cosine": 0.999998067401153,
+      "finite": true,
+      "limits": {
+        "cosine": 0.995,
+        "max_abs": 0.2,
+        "relative_l2": 0.05,
+        "rms": 0.05
+      },
+      "max_abs": 0.010399237275123596,
+      "passed": true,
+      "relative_l2": 0.001966172623269066,
+      "rms": 0.0009213803188478966,
+      "shape_match": true,
+      "threshold": "final_normalized_action"
+    },
+    "kv_hash_unchanged": true,
+    "steps": [
+      {
+        "execution_seconds": 0.04505084711126983,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 2,
+        "t": 0.19979999959468842
+      },
+      {
+        "execution_seconds": 0.04155924892984331,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 3,
+        "t": 0.2997000217437744
+      },
+      {
+        "execution_seconds": 0.04121320811100304,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 4,
+        "t": 0.39959999918937683
+      },
+      {
+        "execution_seconds": 0.04069149191491306,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 5,
+        "t": 0.49950000643730164
+      },
+      {
+        "execution_seconds": 0.04206181084737182,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 6,
+        "t": 0.5994000434875488
+      },
+      {
+        "execution_seconds": 0.039787589106708765,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 7,
+        "t": 0.6992999911308289
+      },
+      {
+        "execution_seconds": 0.04147694096900523,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 8,
+        "t": 0.7991999983787537
+      },
+      {
+        "execution_seconds": 0.040942050982266665,
+        "finite": true,
+        "pytorch_reference_available": false,
+        "step": 9,
+        "t": 0.8991000056266785
+      },
+      {
+        "execution_seconds": 0.043064701138064265,
+        "finite": true,
+        "metrics": {
+          "cosine": 0.999998067401153,
+          "finite": true,
+          "limits": {
+            "cosine": 0.995,
+            "max_abs": 0.2,
+            "relative_l2": 0.05,
+            "rms": 0.05
+          },
+          "max_abs": 0.010399237275123596,
+          "passed": true,
+          "relative_l2": 0.001966172623269066,
+          "rms": 0.0009213803188478966,
+          "shape_match": true,
+          "threshold": "final_normalized_action"
+        },
+        "pytorch_reference_available": true,
+        "step": 10,
+        "t": 0.9990000128746033
+      }
+    ]
+  },
+  "schema_version": "walloss.revision5.ort-cuda-postfix-parity.v1",
+  "scope": "strict CUDA postfix_step only; prefix_embed and prefill remain provider-blocked",
+  "teacher_forced_final_step": {
+    "execution_seconds": 26.859353586100042,
+    "kv_hash_unchanged": true,
+    "metrics": {
+      "cosine": 0.9999988570650838,
+      "finite": true,
+      "limits": {
+        "cosine": 0.995,
+        "max_abs": 0.2,
+        "relative_l2": 0.05,
+        "rms": 0.05
+      },
+      "max_abs": 0.0029970109462738037,
+      "passed": true,
+      "relative_l2": 0.0015121761074790437,
+      "rms": 0.0007086302024420691,
+      "shape_match": true,
+      "threshold": "final_normalized_action"
+    }
+  }
+}

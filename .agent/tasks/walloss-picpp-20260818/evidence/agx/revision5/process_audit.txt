@@ -1,0 +1,25 @@
+USER         PID COMMAND         COMMAND
+root         786 tailscaled      /usr/sbin/tailscaled --state=/var/lib/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=41641
+root         315 systemd-journal /lib/systemd/systemd-journald
+gdm         1829 gnome-shell     /usr/bin/gnome-shell
+root        1429 dockerd         /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+root        1500 Xorg            /usr/lib/xorg/Xorg vt1 -displayfd 3 -auth /run/user/128/gdm/Xauthority -nolisten tcp -background none -noreset -keeptty -novtswitch -verbose 3
+root        1256 containerd      /usr/bin/containerd
+root       62658 tailscaled      /usr/sbin/tailscaled be-child ssh --login-shell=/bin/bash --uid=0 --gid=0 --groups=0 --local-user=root --home-dir=/root --remote-user=eddie18361268318@gmail.com --remote-ip=100.95.205.63 --has-tty=false --tty-name= --force-v1-behavior --cmd=set -eu; ps -eo user,pid,comm,args --sort=-%mem | head -25
+root         596 NetworkManager  /usr/sbin/NetworkManager --no-daemon
+gdm         2040 gjs             /usr/bin/gjs /usr/share/gnome-shell/org.gnome.ScreenSaver
+gdm         1892 gjs             /usr/bin/gjs /usr/share/gnome-shell/org.gnome.Shell.Notifications
+root           1 systemd         /sbin/init 2
+root         609 polkitd         /usr/libexec/polkitd --no-debug
+gdm         1812 gnome-session-b /usr/libexec/gnome-session-binary --autostart /usr/share/gdm/greeter/autostart
+root        1889 packagekitd     /usr/libexec/packagekitd
+root         647 udisksd         /usr/libexec/udisks2/udisksd
+root       62665 systemd         /lib/systemd/systemd --user
+root       59769 atop            /usr/bin/atop -R -w /var/log/atop/atop_20260820 600
+root         603 networkd-dispat /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+systemd+     567 systemd-resolve /lib/systemd/systemd-resolved
+gdm         1434 systemd         /lib/systemd/systemd --user
+gdm         1917 gsd-sharing     /usr/libexec/gsd-sharing
+gdm         1936 gsd-media-keys  /usr/libexec/gsd-media-keys
+gdm         1952 gsd-power       /usr/libexec/gsd-power
+root         644 accounts-daemon /usr/libexec/accounts-daemon

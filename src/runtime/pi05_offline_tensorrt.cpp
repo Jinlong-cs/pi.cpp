@@ -117,6 +117,7 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
                      std::size_t suffix_x_t_input_index,
                      std::size_t suffix_x_t_next_output_index,
                      cudaStream_t stream,
+                     cudaGraphExec_t suffix_graph_exec,
                      Pi05RunResult* result) {
   RETURN_IF_ERROR(timers->prefix_embed.Start(stream));
   RETURN_IF_ERROR(runtime::RunStage(prefix_embed, prefix_embed_plan, prefix_embed_workspace, stream));
@@ -132,14 +133,21 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
   DeviceTensor* next_x_t = &(*x_t_buffers)[1];
 
   RETURN_IF_ERROR(timers->suffix_loop.Start(stream));
-  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-    RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
+  if (suffix_graph_exec != nullptr) {
+    // Graph replay: the captured graph writes the final x_t into
+    // x_t_buffers[0] (10 steps = an even number of ping-pong swaps), which
+    // is where current_x_t already points.
+    RETURN_IF_ERROR(runtime::CheckCuda(cudaGraphLaunch(suffix_graph_exec, stream), "suffix CUDA-graph launch failed"));
+  } else {
+    for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+      RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
 
-    suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
-    suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
+      suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
+      suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
 
-    RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
-    std::swap(current_x_t, next_x_t);
+      RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
+      std::swap(current_x_t, next_x_t);
+    }
   }
   RETURN_IF_ERROR(timers->suffix_loop.Stop(stream));
 
@@ -164,10 +172,20 @@ Pi05OfflineRunner::Pi05OfflineRunner(std::filesystem::path engine_dir)
       prefix_lm_(engine_dir_ / std::string(pi05::kPrefixLmEngine)),
       suffix_step_(engine_dir_ / std::string(pi05::kSuffixStepEngine)) {}
 
-Pi05OfflineRunner::~Pi05OfflineRunner() = default;
+Pi05OfflineRunner::~Pi05OfflineRunner() {
+  if (suffix_graph_exec_ != nullptr) {
+    cudaGraphExecDestroy(suffix_graph_exec_);
+    suffix_graph_exec_ = nullptr;
+  }
+}
 
 Status Pi05OfflineRunner::Load() {
   auto start = std::chrono::steady_clock::now();
+  suffix_graph_ready_ = false;
+  suffix_graph_exec_ = nullptr;
+  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+    timestep_values_[step] = 1.0F + static_cast<float>(step) * pi05::kDefaultDt;
+  }
   RETURN_IF_ERROR(runtime::LoadEngine(&prefix_embed_));
   RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
   RETURN_IF_ERROR(runtime::LoadEngine(&suffix_step_));
@@ -331,13 +349,55 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
   Status status = RunPi05Stages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
                                 &prefix_embed_plan_, &prefix_lm_plan_, &suffix_step_plan_, &prefix_embed_workspace_,
                                 &prefix_lm_workspace_, &suffix_step_workspace_, &timers_, suffix_x_t_input_index_,
-                                suffix_x_t_next_output_index_, stream_.get(), result);
+                                suffix_x_t_next_output_index_, stream_.get(), suffix_graph_exec_, result);
   if (status.ok()) status = stream_.Synchronize();
   if (status.ok() && has_delay_input_) {
     status = PinRtcActionPrefix(request, &result->action);
   }
+  if (status.ok()) status = CaptureSuffixGraph();
   result->infer_ms = runtime::ElapsedMs(start);
   return status;
+}
+
+Status Pi05OfflineRunner::CaptureSuffixGraph() {
+  if (suffix_graph_ready_) return Status::Ok();
+  // Attempt exactly once, after the first successful (warmup) run so TRT's
+  // lazy per-context allocations exist. Any failure keeps the eager path.
+  suffix_graph_ready_ = true;
+
+  DeviceTensor* current_x_t = &x_t_buffers_[0];
+  DeviceTensor* next_x_t = &x_t_buffers_[1];
+
+  Status capture = runtime::CheckCuda(
+      cudaStreamBeginCapture(stream_.get(), cudaStreamCaptureModeThreadLocal), "begin suffix CUDA-graph capture");
+  if (!capture.ok()) return Status::Ok();
+
+  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+    // The host source lives in the stable member array and its value is a
+    // fixed schedule constant, so the captured H2D memcpy is valid forever.
+    capture = runtime::SetFloat32Scalar(&timestep_, timestep_values_[step], stream_.get());
+    if (!capture.ok()) break;
+    suffix_step_plan_.input_views[suffix_x_t_input_index_] = current_x_t->view();
+    suffix_step_workspace_.output_views[suffix_x_t_next_output_index_] = next_x_t->view();
+    capture = runtime::RunStage(suffix_step_, &suffix_step_plan_, &suffix_step_workspace_, stream_.get());
+    if (!capture.ok()) break;
+    std::swap(current_x_t, next_x_t);
+  }
+
+  cudaGraph_t graph = nullptr;
+  cudaError_t end_status = cudaStreamEndCapture(stream_.get(), &graph);
+  if (!capture.ok() || end_status != cudaSuccess) {
+    if (end_status == cudaSuccess && graph != nullptr) {
+      cudaGraphDestroy(graph);
+    }
+    return Status::Ok();
+  }
+  cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, nullptr, nullptr, 0);
+  cudaGraphDestroy(graph);
+  if (instantiate_status != cudaSuccess) {
+    suffix_graph_exec_ = nullptr;
+  }
+  return Status::Ok();
 }
 
 double Pi05OfflineRunner::load_ms() const { return load_ms_; }
