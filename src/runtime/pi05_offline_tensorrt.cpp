@@ -4,7 +4,6 @@
 
 #include <array>
 #include <chrono>
-#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -371,7 +370,6 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
 
   Status capture = runtime::CheckCuda(
       cudaStreamBeginCapture(stream_.get(), cudaStreamCaptureModeThreadLocal), "begin suffix CUDA-graph capture");
-  fprintf(stderr, "[pigraph] begin capture status=%s\n", capture.ok() ? "ok" : "fail");
   if (!capture.ok()) return Status::Ok();
 
   for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
@@ -400,12 +398,6 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
     return Status::Ok();
   }
   cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, 0);
-  {
-    std::size_t node_count = 0;
-    cudaGraphGetNodes(graph, nullptr, &node_count);
-    fprintf(stderr, "[pigraph] capture end=%s nodes=%zu instantiate=%s\n",
-            cudaGetErrorName(end_status), node_count, cudaGetErrorName(instantiate_status));
-  }
   cudaGraphDestroy(graph);
   if (instantiate_status != cudaSuccess) {
     suffix_graph_exec_ = nullptr;
