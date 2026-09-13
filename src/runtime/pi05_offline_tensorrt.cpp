@@ -392,7 +392,7 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
     }
     return Status::Ok();
   }
-  cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, nullptr, nullptr, 0);
+  cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, 0);
   cudaGraphDestroy(graph);
   if (instantiate_status != cudaSuccess) {
     suffix_graph_exec_ = nullptr;
