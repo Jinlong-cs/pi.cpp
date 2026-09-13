@@ -4,6 +4,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -370,12 +371,18 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
 
   Status capture = runtime::CheckCuda(
       cudaStreamBeginCapture(stream_.get(), cudaStreamCaptureModeThreadLocal), "begin suffix CUDA-graph capture");
+  fprintf(stderr, "[pigraph] begin capture status=%s\n", capture.ok() ? "ok" : "fail");
   if (!capture.ok()) return Status::Ok();
 
   for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-    // The host source lives in the stable member array and its value is a
-    // fixed schedule constant, so the captured H2D memcpy is valid forever.
-    capture = runtime::SetFloat32Scalar(&timestep_, timestep_values_[step], stream_.get());
+    // The captured H2D memcpy node keeps the HOST POINTER and re-reads it at
+    // every launch, so the source must live in stable member storage (a
+    // function-local would be a dead stack slot by replay time). The value is
+    // a fixed schedule constant, so the captured node is valid forever.
+    capture = runtime::CheckCuda(
+        cudaMemcpyAsync(timestep_.data.get(), &timestep_values_[step], sizeof(float), cudaMemcpyHostToDevice,
+                        stream_.get()),
+        "captured timestep memcpy failed");
     if (!capture.ok()) break;
     suffix_step_plan_.input_views[suffix_x_t_input_index_] = current_x_t->view();
     suffix_step_workspace_.output_views[suffix_x_t_next_output_index_] = next_x_t->view();
@@ -393,6 +400,12 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
     return Status::Ok();
   }
   cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, 0);
+  {
+    std::size_t node_count = 0;
+    cudaGraphGetNodes(graph, nullptr, &node_count);
+    fprintf(stderr, "[pigraph] capture end=%s nodes=%zu instantiate=%s\n",
+            cudaGetErrorName(end_status), node_count, cudaGetErrorName(instantiate_status));
+  }
   cudaGraphDestroy(graph);
   if (instantiate_status != cudaSuccess) {
     suffix_graph_exec_ = nullptr;
