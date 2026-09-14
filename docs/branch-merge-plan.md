@@ -46,11 +46,22 @@ commit is contained in heterogeneous, heterogeneous in rtc).
 |---|---|---|---|---|
 | — | docs (architecture/schema/plan) | direct push | `9cea37e` | — |
 | 1 | feat/v0.2-optimization-sdk | #1 (was DRAFT) | `6b7406d` | `merge-opt-sdk` |
-| 2 | fix/trt-fast-engine-read | #3 (rebase: 2→1 commit) | cc71bd5 | `merge-engine-read-fix` |
+| 2 | fix/trt-fast-engine-read | **#6** | `a34ba0a` | `merge-engine-read-fix` |
 | 3 | feat/pi06-airbot-runtime | #2 | `1b751b2` | `merge-pi06-airbot` |
 | 4 | feat/pi06-heterogeneous-runtime | #4 (new) | `e90a831` | `merge-pi06-heterogeneous` |
 | 5 | feat/pi06-rtc-runtime | #5 (new) | `02ab124` | `merge-pi06-rtc` |
 | — | test: tolerance-compare sparse-delta gate scales | direct push | `ee30abc` | — |
+| — | merge-plan executed log | direct push | `6011d77` | — |
+
+> **Incident (recorded):** PR #3 carried the fix but its base was
+> `feat/v0.2-optimization-sdk` (the fix branch was originally cut from the
+> SDK commit), so `gh pr merge 3` merged the fix into the SDK branch
+> (`cc71bd5`), not main — discovered by checking `--contains` against
+> origin/main after the "MERGED" state. Remediation: the polluted SDK
+> branch was deleted, the fix re-submitted as PR #6 onto main, and the
+> mis-tagged `merge-engine-read-fix` (on `6b7406d`) was moved to the real
+> merge commit. Lesson: verify the PR's `baseRefName` (and the resulting
+> main ancestry) before merging, not after.
 
 The trap-fix history (`cudaGraphInstantiate` signature, timestep host
 pointer, debug-print cleanup) survived the rebase as individual commits on
