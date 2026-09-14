@@ -357,7 +357,7 @@ def test_apply_sparse_delta(tmp_path: Path) -> None:
     assert summary["changed_values"] == 5
     result = {initializer.name: initializer for initializer in candidate.graph.initializer}
     gate_scale = numpy_helper.to_array(result[ffn_onnx_names(0)["gate_scale"]])
-    assert gate_scale[0] == 0.01 and gate_scale[3] == 0.02
+    assert np.isclose(gate_scale[0], 0.01) and np.isclose(gate_scale[3], 0.02)
     assert numpy_helper.to_array(result[ffn_onnx_names(0)["gate_scale"]])[1] != 0.01
     assert np.array_equal(
         numpy_helper.to_array(result[ffn_onnx_names(1)["down_weight"]]),
