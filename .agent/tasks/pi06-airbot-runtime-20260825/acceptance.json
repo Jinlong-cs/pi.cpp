@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "task_id": "pi06-airbot-runtime-20260825",
+  "contract_revision": 1,
+  "decision": "pending",
+  "gates": [
+    {
+      "id": "machine-checks",
+      "claim": "The adapter imports, passes static checks, and preserves the documented tensor contract.",
+      "surface": "static",
+      "executor": "machine",
+      "blocking": true,
+      "approval_required": false,
+      "approval": {"status": "not_required", "approved_by": "", "approved_at": ""},
+      "check": {
+        "kind": "command",
+        "command_or_review": "python -m compileall python/pi_cpp && ruff check python/pi_cpp/pi06_airbot.py python/pi_cpp/__init__.py python/pi_cpp/server/policy.py python/pi_cpp/commands/server.py python/pi_cpp/commands/latency.py python/pi_cpp/cli.py",
+        "working_directory": "."
+      },
+      "expected": "Commands exit zero.",
+      "evidence_required": ["command output"],
+      "result": {
+        "status": "passed",
+        "observed": "Compileall, focused Ruff, Ruff format, diff check, and fake-native WebSocket tensor-contract smoke passed.",
+        "evidence": ["commit 7216a3a7113754d24ece9d2343bc8e00352cac82 and task-session command output"],
+        "residual_risk": "Real PI0.6 engines, dtype ABI, numerical parity, AGX latency, and closed-loop behavior remain unverified.",
+        "verified_by": "/root",
+        "verified_at": "2026-08-25T04:05:07+08:00",
+        "waiver_reason": ""
+      }
+    },
+    {
+      "id": "human-review",
+      "claim": "The PR contains only the requested Airbot deployment adapter and contract.",
+      "surface": "review",
+      "executor": "human",
+      "blocking": true,
+      "approval_required": true,
+      "approval": {"status": "pending", "approved_by": "", "approved_at": ""},
+      "check": {"kind": "review", "command_or_review": "Review the isolated diff and non-goals.", "working_directory": "."},
+      "expected": "The user accepts the scoped PR.",
+      "evidence_required": ["review decision"],
+      "result": {"status": "pending", "observed": "", "evidence": [], "residual_risk": "", "verified_by": "", "verified_at": "", "waiver_reason": ""}
+    }
+  ],
+  "decided_by": "",
+  "decided_at": "",
+  "residual_risks": ["Final exporter IO and AGX engine parity remain pending."]
+}
