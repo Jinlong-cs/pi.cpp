@@ -4,6 +4,14 @@ Differs from pi06_airbot: continuous state (quantile-normalized 16-dim vector
 fed to the suffix engine), no advantage conditioning, prompt is the raw task
 string tokenized as [bos] + ids + ids("\\n"), and the flow-matching loop runs
 in the raw 16-dim action space ([50,16] in and out of the engine).
+
+The RTC (training-time recurrent temporal conditioning) ABI is folded into
+this same wrapper: when the export manifest declares ``rtc.training_time_rtc``
+the suffix engine expects the extra ``delay`` [1] int64 and ``action_prefix``
+[1,50,16] float32 inputs, the executed prefix positions are pinned back each
+step (the final pin runs on the host), and delay=0 reduces bit-for-bit to the
+plain heterogeneous semantics. The variant is manifest-driven, not a separate
+class: ``pi06_rtc.py`` is a back-compat shim around this wrapper.
 """
 
 from __future__ import annotations
@@ -26,6 +34,70 @@ PI06_HETEROGENEOUS_ENGINE_DIR = "engines"
 PI06_HETEROGENEOUS_MANIFEST_PATH = "export_manifest.json"
 PI06_HETEROGENEOUS_MANIFEST_SCHEMA = "pi_cpp.pi06_heterogeneous.v1"
 PI06_HETEROGENEOUS_CAMERA_ORDER = ("base_0_rgb", "left_wrist_0_rgb", "right_wrist_0_rgb")
+
+# The cloth_*_airbot action layout: embodiment 0 (fold_cloth_v4) maps
+# 6+1 joints/gripper into the canonical 16 slots (missing joint slot and
+# right gripper slot zero-padded); embodiment 1 is identity. Same table as
+# CLOTH_ACTION_INDEX_MAPS in training/config.py.
+ACTION_INDEX_MAPS = (
+    (0, 1, 2, 3, 4, 5, -1, 6, 7, 8, 9, 10, 11, 12, -1, 13),
+    tuple(range(16)),
+)
+
+
+def _detect_rtc(manifest: dict[str, Any]) -> bool:
+    """The RTC variant is declared by the manifest; fail-closed on contradiction."""
+    rtc = manifest.get("rtc")
+    if not rtc:
+        return False
+    if not rtc.get("training_time_rtc", False):
+        raise ValueError("manifest declares an rtc section but rtc.training_time_rtc != True")
+    return True
+
+
+def _map_action_prefix(values: np.ndarray, embodiment_id: int, internal_action_dim: int) -> np.ndarray:
+    index_map = ACTION_INDEX_MAPS[int(embodiment_id)]
+    mapped = np.zeros((values.shape[0], internal_action_dim), dtype=np.float32)
+    for out_index, source_index in enumerate(index_map):
+        if source_index >= 0:
+            mapped[:, out_index] = values[:, source_index]
+    return mapped
+
+
+def prepare_rtc_inputs(
+    delay: Any,
+    action_prefix: Any,
+    embodiment_id: int,
+    *,
+    horizon: int,
+    raw_action_dim: int,
+    internal_action_dim: int,
+    norm_stats: Any,
+    rtc_max_delay: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Map raw-space executed prefix -> the engine ABI (canonical,
+    quantile-normalized, horizon-padded), mirroring the JAX policy.infer
+    input transform (airbot map -> quantile normalize -> zero pad)."""
+    if delay is None:
+        delay_value = 0
+    else:
+        delay_value = int(np.asarray(delay).reshape(-1)[0])
+    if not 0 <= delay_value <= rtc_max_delay:
+        raise ValueError(f"delay {delay_value} outside the trained range [0, {rtc_max_delay}]")
+    prefix = np.zeros((horizon, internal_action_dim), dtype=np.float32)
+    if delay_value > 0:
+        if action_prefix is None:
+            raise ValueError("pi06_rtc requires action_prefix when delay > 0")
+        raw = np.asarray(action_prefix, dtype=np.float32)
+        if raw.shape != (delay_value, raw_action_dim):
+            raise ValueError(f"action_prefix must have shape [{delay_value}, {raw_action_dim}], got {raw.shape}")
+        mapped = _map_action_prefix(raw, embodiment_id, internal_action_dim)
+        stats = norm_stats["actions"]
+        prefix[:delay_value] = (mapped - stats.q01) / (stats.q99 - stats.q01 + 1e-6) * 2.0 - 1.0
+    return (
+        np.ascontiguousarray(np.asarray([delay_value], dtype=np.int64)),
+        np.ascontiguousarray(prefix[None], dtype=np.float32),
+    )
 
 
 @dataclass(frozen=True)
@@ -85,6 +157,8 @@ class Pi06HeterogeneousRunnerWrapper:
         self.manifest_schema = PI06_HETEROGENEOUS_MANIFEST_SCHEMA
         manifest = json.loads((self.model_dir / PI06_HETEROGENEOUS_MANIFEST_PATH).read_text())
         self.spec = self._load_spec(manifest)
+        self.rtc_enabled = _detect_rtc(manifest)
+        self._rtc_max_delay = int(manifest["rtc"]["rtc_max_delay"]) if self.rtc_enabled else 0
         self.engine_dir = self.model_dir / PI06_HETEROGENEOUS_ENGINE_DIR
         self._norm_stats = self._load_norm_stats()
         self._tokenizer: sentencepiece.SentencePieceProcessor | None = None
@@ -94,6 +168,10 @@ class Pi06HeterogeneousRunnerWrapper:
         self._input_shapes = self._runner.input_shapes()
         self._validate_input_shapes()
         self.metadata: dict[str, Any] = {"input_shapes": self._input_shapes}
+
+    @property
+    def rtc_max_delay(self) -> int:
+        return self._rtc_max_delay
 
     @staticmethod
     def _load_spec(manifest: dict[str, Any]) -> Pi06HeterogeneousSpec:
@@ -210,6 +288,9 @@ class Pi06HeterogeneousRunnerWrapper:
             "state": [1, self.spec.raw_state_dim],
             "embodiment_id": [1],
         }
+        if self.rtc_enabled:
+            expected["delay"] = [1]
+            expected["action_prefix"] = [1, self.spec.action_horizon, self.spec.internal_action_dim]
         actual = {name: list(self._input_shapes[name]) for name in expected}
         if actual != expected:
             raise ValueError(f"PI0.6 heterogeneous input shapes do not match the fixed ABI: {actual}")
@@ -370,10 +451,28 @@ class Pi06HeterogeneousRunnerWrapper:
         for name, shape in expected.items():
             if list(resolved[name].shape) != shape:
                 raise ValueError(f"PI0.6 heterogeneous ABI tensor {name} has shape {resolved[name].shape}, expected {shape}")
+        if self.rtc_enabled:
+            if "delay" in tensors and "action_prefix" in tensors:
+                resolved["delay"] = np.ascontiguousarray(np.asarray(tensors["delay"], dtype=np.int64))
+                resolved["action_prefix"] = np.ascontiguousarray(np.asarray(tensors["action_prefix"], dtype=np.float32))
+                if list(resolved["delay"].shape) != [1]:
+                    raise ValueError(f"delay has shape {resolved['delay'].shape}, expected [1]")
+                if list(resolved["action_prefix"].shape) != [1, self.spec.action_horizon, self.spec.internal_action_dim]:
+                    raise ValueError(
+                        f"action_prefix has shape {resolved['action_prefix'].shape}, "
+                        f"expected [1,{self.spec.action_horizon},{self.spec.internal_action_dim}]"
+                    )
+            else:
+                resolved["delay"] = np.ascontiguousarray(np.zeros((1,), dtype=np.int64))
+                resolved["action_prefix"] = np.ascontiguousarray(
+                    np.zeros((1, self.spec.action_horizon, self.spec.internal_action_dim), dtype=np.float32)
+                )
+        elif "delay" in tensors or "action_prefix" in tensors:
+            raise ValueError("delay/action_prefix supplied but the manifest does not declare the RTC ABI")
         result = self._runner.run_once(resolved)
         actions = self._postprocess_actions(result.action)
         self.metadata = {
-            "model": "pi06_heterogeneous",
+            "model": "pi06_rtc" if self.rtc_enabled else "pi06_heterogeneous",
             "manifest_schema": self.manifest_schema,
             "model_dir": str(self.model_dir),
             "engine_dir": str(self.engine_dir),
@@ -391,6 +490,8 @@ class Pi06HeterogeneousRunnerWrapper:
             "input_shapes": {name: list(array.shape) for name, array in resolved.items()},
             **result.to_dict(),
         }
+        if self.rtc_enabled:
+            self.metadata["delay"] = int(resolved["delay"][0])
         return actions
 
     def run_once(
@@ -401,6 +502,8 @@ class Pi06HeterogeneousRunnerWrapper:
         state: Any,
         embodiment_id: int | None = None,
         noise: Any | None = None,
+        delay: Any | None = None,
+        action_prefix: Any | None = None,
     ) -> np.ndarray:
         preprocess_start = perf_counter()
         resolved_embodiment = self._prepare_embodiment_id(embodiment_id)
@@ -415,13 +518,28 @@ class Pi06HeterogeneousRunnerWrapper:
             "state": np.ascontiguousarray(normalized_state[None], dtype=np.float32),
             "embodiment_id": resolved_embodiment,
         }
+        if self.rtc_enabled:
+            delay_tensor, prefix_tensor = prepare_rtc_inputs(
+                delay,
+                action_prefix,
+                int(resolved_embodiment[0]),
+                horizon=self.spec.action_horizon,
+                raw_action_dim=self.spec.raw_action_dim,
+                internal_action_dim=self.spec.internal_action_dim,
+                norm_stats=self._norm_stats,
+                rtc_max_delay=self.rtc_max_delay,
+            )
+            tensors["delay"] = delay_tensor
+            tensors["action_prefix"] = prefix_tensor
+        elif delay is not None or action_prefix is not None:
+            raise ValueError("delay/action_prefix supplied but the manifest does not declare the RTC ABI")
         preprocess_ms = (perf_counter() - preprocess_start) * 1000.0
         result = self._runner.run_once(tensors)
         postprocess_start = perf_counter()
         actions = self._postprocess_actions(result.action)
         postprocess_ms = (perf_counter() - postprocess_start) * 1000.0
         self.metadata = {
-            "model": "pi06_heterogeneous",
+            "model": "pi06_rtc" if self.rtc_enabled else "pi06_heterogeneous",
             "manifest_schema": self.manifest_schema,
             "model_dir": str(self.model_dir),
             "engine_dir": str(self.engine_dir),
@@ -441,6 +559,8 @@ class Pi06HeterogeneousRunnerWrapper:
             "postprocess_ms": postprocess_ms,
             **result.to_dict(),
         }
+        if self.rtc_enabled:
+            self.metadata["delay"] = int(tensors["delay"][0])
         return actions
 
 
