@@ -106,6 +106,13 @@ acceptance lock. Nothing model-specific in the C++ runner.
     }
   },
 
+  // Optional arm-authorization boundary (Phase 4). When `required` is true
+  // the closed loop (picpp serve) refuses to start without --authorize and
+  // exits 2 (unauthorized). Absent = no requirement (historical packages).
+  "authorization": {
+    "required": false
+  },
+
   // Written by `picpp package lock` after a green verify; frozen afterwards.
   "lock": {
     "sha256": "<package hash>",

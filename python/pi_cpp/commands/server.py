@@ -1,11 +1,15 @@
 """WebSocket policy server command."""
 
 from __future__ import annotations
+
 from functools import partial
 from pathlib import Path
 from typing import Literal
-from policy_websocket import WebsocketPolicyServer
+
 import policy_websocket.websocket_server as websocket_server_module
+from policy_websocket import WebsocketPolicyServer
+
+from pi_cpp.authorization import authorization_denied
 from pi_cpp.server.policy import (
     Dit4DitPolicy,
     Evo1Policy,
@@ -28,7 +32,9 @@ websocket_server_module._server.serve = partial(
 )
 
 
-def run_server(*, model: Model, model_dir: Path, host: str, port: int) -> int:
+def run_server(*, model: Model, model_dir: Path, host: str, port: int, authorize: bool = False) -> int:
+    if authorization_denied(model_dir, authorize):
+        return 2
     if model == "pi05":
         policy = Pi05Policy(model_dir=model_dir)
     elif model == "pi06_airbot":

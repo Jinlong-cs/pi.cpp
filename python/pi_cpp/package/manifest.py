@@ -124,6 +124,11 @@ def validate(raw: dict[str, Any]) -> None:
 
     engines = _validate_engines(raw)
 
+    if "authorization" in raw:
+        authorization = _require_dict(raw, "authorization", "manifest")
+        if "required" in authorization and not isinstance(authorization["required"], bool):
+            _fail(f"authorization.required: expected a bool, got {authorization['required']!r}")
+
     loop = _require_dict(raw, "loop", "manifest")
     if _require_str(loop, "kind", "loop") != "host_denoise":
         _fail(f"loop.kind: expected 'host_denoise', got {loop['kind']!r}")
