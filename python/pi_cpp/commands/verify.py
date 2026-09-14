@@ -147,15 +147,12 @@ def run_parity(command: VerifyConfig, gates: dict, report: dict) -> int:
         result = runner.run_once(_engine_tensors(inputs))
         action = np.asarray(result.action, dtype=np.float32).reshape(SURFACE_SHAPE)
         surfaces[case_id] = pin_rtc_prefix(inputs["delay"], inputs["action_prefix"], action)
+    raw_surfaces = {case_id: unnormalize_actions(surface, command.norm_stats) for case_id, surface in surfaces.items()}
     scale = _load_per_dim_scale(command.contract, command.golden)
-    comparison = triplet(
-        golden,
-        {case_id: unnormalize_actions(surface, command.norm_stats) for case_id, surface in surfaces.items()},
-        scale,
-    )
+    comparison = triplet(golden, raw_surfaces, scale)
     observed = {
         "aggregate": comparison["aggregate"],
-        "runtime_raw_max_abs": raw_max_abs(_load_reference_surfaces(command.reference), surfaces) if command.reference else 0.0,
+        "runtime_raw_max_abs": raw_max_abs(_load_reference_surfaces(command.reference), raw_surfaces) if command.reference else 0.0,
     }
     report["picpp_vs_golden"] = comparison
     report["runtime_raw_max_abs"] = observed["runtime_raw_max_abs"]
