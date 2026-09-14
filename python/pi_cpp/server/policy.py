@@ -150,6 +150,40 @@ class Pi06HeterogeneousPolicy(BasePolicy):
 
 
 @dataclass
+class Pi06RtcPolicy(BasePolicy):
+    model_dir: Path
+
+    def __post_init__(self) -> None:
+        self._runner = picpp.build_pi06_rtc_runner(model_dir=self.model_dir)
+        self.action_horizon = self._runner.action_horizon
+        self.action_dim = self._runner.action_dim
+        self.image_size = self._runner.image_size
+        self.num_cameras = self._runner.num_cameras
+        self.state_dim = self._runner.state_dim
+        self.camera_order = self._runner.spec.camera_order
+        self.internal_action_dim = self._runner.spec.internal_action_dim
+        self.token_length = self._runner.spec.token_length
+        self.action_semantics = self._runner.spec.action_semantics
+        self.num_embodiments = self._runner.spec.num_embodiments
+        self.default_embodiment_id = self._runner.spec.default_embodiment_id
+        self.denoise_steps = self._runner.spec.denoise_steps
+        self.dt = self._runner.spec.dt
+        self.manifest_schema = self._runner.manifest_schema
+        self.rtc_max_delay = self._runner.rtc_max_delay
+
+    def infer(self, obs: dict[str, Any]) -> dict[str, np.ndarray]:
+        actions = self._runner.run_once(
+            images=tuple(obs[name] for name in self.camera_order),
+            prompt=str(obs["prompt"]),
+            state=obs["state"],
+            embodiment_id=obs.get("embodiment_id"),
+            delay=obs.get("delay"),
+            action_prefix=obs.get("action_prefix"),
+        )
+        return {"actions": np.asarray(actions, dtype=np.float32)}
+
+
+@dataclass
 class FastWamPolicy(BasePolicy):
     model_dir: Path
 

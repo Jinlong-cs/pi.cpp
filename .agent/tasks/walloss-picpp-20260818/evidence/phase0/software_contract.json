@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-08-18T18:01:12+08:00",
+  "runtime": {
+    "python": "3.10.12",
+    "tensorrt_python": "10.3.0",
+    "tensorrt_debian_packages": "10.3.0.30-1+cuda12.5",
+    "cuda_runtime_packages": ["cuda-cudart-12-6 12.6.68-1", "cuda-cudart-dev-12-6 12.6.68-1"],
+    "cuda_toolkit_packages": ["cuda-nvcc-12-6 12.6.68-1", "cuda-toolkit-12-6-config-common 12.6.68-1"],
+    "nvcc": {"path": "/usr/local/cuda-12.6/bin/nvcc", "version": "Cuda compilation tools, release 12.6, V12.6.68", "path_in_default_PATH": false},
+    "cuda_default_path_observation": "/usr/local/cuda is a directory with CUDA libraries but does not expose bin/nvcc; future builds must set CUDA_HOME/PATH explicitly after environment approval",
+    "compiler": "g++ 11.4.0-1ubuntu1~22.04.3",
+    "cmake": "3.22.1",
+    "ninja": "not found in PATH",
+    "profiler_tools": {"ncu": "not found in PATH", "nsys": "not found in PATH", "tegrastats": "/usr/bin/tegrastats"}
+  },
+  "python_environment_gap": {
+    "system_python_imports": {"torch": "unavailable", "transformers": "unavailable", "flash_attn": "unavailable", "onnxruntime": "unavailable", "onnx": "1.7.0"},
+    "implication": "A task-owned isolated environment on NVMe is required before Wall-X reference/export or CUDAExtension build; no package installation was attempted in Phase 0."
+  },
+  "hf_cli": {"version": "1.2.1", "installation": "Homebrew on macOS; command surface lacks the newer hf models subcommand, so Hub REST metadata was used instead of upgrading the CLI"},
+  "target_build_requirement": "TensorRT engine and any CUDAExtension must be built on agx-test with the target Jetson software contract, not on the Mac."
+}

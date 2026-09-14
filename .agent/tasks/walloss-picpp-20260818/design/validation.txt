@@ -1,0 +1,37 @@
+validated_at=2026-08-19T14:08:28+08:00
+task_id=walloss-picpp-20260818
+contract_revision=3
+phase=revision3-exporter-static-complete
+
+contract_validator:
+OK: task walloss-picpp-20260818 revision 3 with 9 work package(s) and 15 gate(s)
+
+gate_state:
+phase0-audit   approval=not_required result=passed
+design-review approval=approved     result=passed
+exporter-static approval=not_required result=passed
+export-parity approval=not_required result=pending
+
+revision3_implementation:
+PASS request-constant v_padding = padding_action - x0
+PASS prefill consumes x0/dt0/dof_mask/v_padding through public bindings
+PASS postfix consumes x_i/t_i/dt_i/dof_mask/v_padding and 72 flat KV bindings
+PASS postfix action-only constants replace stale embedding/type/range inputs
+PASS Transformers 5.2 DynamicCache bridge contains 36 layers at length 736
+PASS generated stage manifest SHA256 5ad9c85a7f9c97b44657bc10b7ba0495bc3406781490df4528015455b3f50ea5
+
+verification:
+PASS Ruff format and check
+PASS 29 focused unit/export tests
+PASS compileall
+PASS source structural probe
+PASS postfix torch.export pure-tensor capture
+PASS postfix synthetic ONNX export retained all 79 named inputs
+PASS external initial_noise patch reverse-apply check
+
+boundary:
+The 4.159B-parameter real model was constructed on meta and its frozen config
+was verified, but no full checkpoint forward or real-weight ONNX export ran on
+the 16 GiB Mac. Full original/wrapper/ONNX numerical parity remains pending.
+No AGX artifact, TensorRT engine, service, latency run, or closed-loop action
+was created or executed.

@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "task_id": "walloss-picpp-20260818-revision8",
+  "contract_revision": 8,
+  "status": "draft",
+  "objective": "Integrate the Revision 7 target-parity Wall-OSS engine package as a first-class persistent pi.cpp backend and prove runtime correctness, same-model AGX latency, server/client stability, and closed-loop quality.",
+  "non_goals": [
+    "Do not execute this contract before Revision 7 target engine feasibility passes.",
+    "Do not rebuild, alter, or silently replace the frozen Revision 7 engines.",
+    "Do not add a PyTorch, ORT, Python, reduced-step, or alternate-model production fallback.",
+    "Do not claim deployment success before final400 and human promotion review."
+  ],
+  "source": {
+    "repo": "/Users/wujinlong/Desktop/Discover/tinyaction/pi.cpp",
+    "base_commit": "a1b1571e5f26692463412cf9065ebd3d547a2f6d",
+    "worktree": "/Users/wujinlong/Desktop/Discover/tinyaction/worktrees/pi.cpp-walloss-picpp-20260818"
+  },
+  "scope": {
+    "owned_paths": [
+      ".agent/tasks/walloss-picpp-20260818/drafts/revision8",
+      ".agent/tasks/walloss-picpp-20260818/evidence/revision8",
+      ".agent/tasks/walloss-picpp-20260818/evidence/agx/revision8",
+      ".agent/tasks/walloss-picpp-20260818/evidence/server/revision8",
+      ".agent/tasks/walloss-picpp-20260818/evidence/closed_loop/revision8",
+      ".agent/tasks/walloss-picpp-20260818/report.md",
+      "include/pi_cpp/runtime/walloss_contract.hpp",
+      "include/pi_cpp/runtime/walloss_offline.hpp",
+      "src/runtime/walloss_offline_tensorrt.cpp",
+      "src/python/bindings.cpp",
+      "python/pi_cpp/runner_wrapper.py",
+      "python/pi_cpp/server/policy.py",
+      "python/pi_cpp/commands/eval.py",
+      "python/pi_cpp/commands/latency.py",
+      "python/pi_cpp/commands/server.py",
+      "python/pi_cpp/commands/client.py",
+      "python/pi_cpp/cli.py",
+      "python/pi_cpp/tui.py",
+      "python/pi_cpp/__init__.py",
+      "CMakeLists.txt",
+      "Makefile"
+    ],
+    "forbidden_paths": [
+      "assets/pi05_libero",
+      "assets/fastwam_libero",
+      "assets/starvla_libero",
+      "assets/smolvla_libero",
+      ".git"
+    ]
+  },
+  "inputs": [
+    "A passed Revision 7 engine-feasibility decision and frozen engine hashes",
+    "The frozen Wall-OSS two-camera BF16 D10 36-layer KV contract",
+    "The existing explicit pi.cpp backend, CLI, policy and server patterns"
+  ],
+  "outputs": [
+    "Persistent C++ TensorRT runner and Python binding",
+    "First-class walloss CLI, eval, latency, policy, server/client and TUI integration",
+    "AGX runtime/offline/latency/server/closed-loop evidence",
+    "Final accept or reject report and rollback path"
+  ],
+  "interfaces": [
+    {
+      "id": "walloss-runtime-api",
+      "owner_work_package": "wp-r8-cpp-runtime",
+      "input": "Prepared named fixed-shape tensors and immutable Revision 7 engine package.",
+      "output": "Persistent single-inflight TensorRT runner returning float32 [32,26] plus stage timings.",
+      "consumers": ["wp-r8-python-integration", "wp-r8-agx-runtime"],
+      "change_control": "Any tensor ABI, dtype, scheduling, flow, cache, normalization, concurrency or output change requires a contract revision."
+    },
+    {
+      "id": "walloss-policy-api",
+      "owner_work_package": "wp-r8-python-integration",
+      "input": "Named face_view/right_wrist_view images, 26-D state, prompt, request ID and explicit x0 or noise seed.",
+      "output": "Float32 [32,26] action chunk and separate policy, preprocessing, stage and request timing metadata.",
+      "consumers": ["wp-r8-server-client", "wp-r8-closed-loop"],
+      "change_control": "No silent camera remap, action projection, fallback, truncation, random-noise ambiguity or timing-boundary change is allowed."
+    }
+  ],
+  "work_packages": [
+    {
+      "id": "wp-r8-design", "goal": "Freeze runtime interfaces, latency thresholds, port/process ownership and closed-loop protocol.", "depends_on": [],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/drafts/revision8"], "inputs": ["Passed Revision 7 evidence"], "outputs": ["Approved Revision 8 contract"],
+      "acceptance_gate_ids": ["revision8-design-review"]
+    },
+    {
+      "id": "wp-r8-cpp-runtime", "goal": "Implement fixed-contract persistent TensorRT stage loading, buffers, 72 KV handoff, nine-step postfix loop and timing.", "depends_on": ["wp-r8-design"],
+      "owned_paths": ["include/pi_cpp/runtime/walloss_contract.hpp", "include/pi_cpp/runtime/walloss_offline.hpp", "src/runtime/walloss_offline_tensorrt.cpp", "src/python/bindings.cpp", "CMakeLists.txt", "Makefile"],
+      "inputs": ["walloss-runtime-api"], "outputs": ["C++ runtime and pybind"], "acceptance_gate_ids": ["cpp-build"]
+    },
+    {
+      "id": "wp-r8-python-integration", "goal": "Add explicit Wall-OSS wrapper, policy, CLI/eval/latency/server/client/TUI dispatch without a parallel registry.", "depends_on": ["wp-r8-cpp-runtime"],
+      "owned_paths": ["python/pi_cpp/runner_wrapper.py", "python/pi_cpp/server/policy.py", "python/pi_cpp/commands/eval.py", "python/pi_cpp/commands/latency.py", "python/pi_cpp/commands/server.py", "python/pi_cpp/commands/client.py", "python/pi_cpp/cli.py", "python/pi_cpp/tui.py", "python/pi_cpp/__init__.py"],
+      "inputs": ["walloss-runtime-api"], "outputs": ["walloss-policy-api"], "acceptance_gate_ids": ["python-static", "existing-backend-regression"]
+    },
+    {
+      "id": "wp-r8-agx-runtime", "goal": "Build the code against target dependencies and run engine smoke, offline parity, same-model R0 and formal/detailed latency without rebuilding engines.", "depends_on": ["wp-r8-python-integration"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/agx/revision8"], "inputs": ["Frozen engines, runtime code and explicit AGX runtime approval"],
+      "outputs": ["AGX runtime and latency evidence"], "acceptance_gate_ids": ["agx-runtime-validation-approval", "agx-engine-smoke", "offline-parity", "same-model-r0-agx-baseline", "standalone-latency"]
+    },
+    {
+      "id": "wp-r8-server-client", "goal": "Run a task-owned persistent service on an approved unused port and prove repeated/reset/memory/timing behavior.", "depends_on": ["wp-r8-agx-runtime"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/server/revision8"], "inputs": ["walloss-policy-api"], "outputs": ["Server/client evidence"],
+      "acceptance_gate_ids": ["server-client-smoke"]
+    },
+    {
+      "id": "wp-r8-closed-loop", "goal": "Run the separately approved closed-loop smoke, Gate40 and final400 with frozen episode contracts.", "depends_on": ["wp-r8-server-client"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/evidence/closed_loop/revision8"], "inputs": ["Accepted persistent candidate and rung approvals"], "outputs": ["Closed-loop evidence"],
+      "acceptance_gate_ids": ["closed-loop-smoke", "gate40", "final400"]
+    },
+    {
+      "id": "wp-r8-report", "goal": "Produce a report at success or any early-rejection boundary with exact evidence, risks and rollback.", "depends_on": ["wp-r8-design"],
+      "owned_paths": [".agent/tasks/walloss-picpp-20260818/report.md", ".agent/tasks/walloss-picpp-20260818/evidence/revision8"], "inputs": ["All completed and failed gates"],
+      "outputs": ["Final report"], "acceptance_gate_ids": ["final-review"]
+    }
+  ],
+  "integration_owner": "primary Codex agent under human acceptance gates",
+  "constraints": {
+    "safety": [
+      "Never modify or replace existing accepted backend packages or services.",
+      "Use only fresh AGX NVMe directories for builds, logs and runtime packages.",
+      "Start only a task-owned process on an approved unused port and stop only that process.",
+      "Physical/closed-loop execution requires the named rung approval and frozen episode manifest."
+    ],
+    "reversibility": "The integration is additive; rollback selects the existing binary/backend and stops only the task-owned Wall-OSS service.",
+    "budget": "Run expensive latency and closed-loop stages only after all preceding gates pass and target resources are freshly audited."
+  },
+  "skill_refs": ["picpp", "ai-infra", "vla-train", "server-space", "agent-workflow-guardrails"],
+  "acceptance_file": "acceptance.json",
+  "artifact_root": "/root/wujinlong/nvme/picpp_walloss_20260818/revision8_runtime/",
+  "promotion": {
+    "targets": ["pi.cpp walloss backend", "task-owned persistent server configuration"],
+    "rule": "Promotion requires all blocking gates and explicit final human acceptance; no default backend or existing service is changed automatically."
+  }
+}

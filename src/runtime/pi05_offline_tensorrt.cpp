@@ -38,6 +38,53 @@ Status ValidatePi05Request(const Pi05OfflineRequest& request) {
   return Status::Ok();
 }
 
+// RTC (real-time chunking): the JAX reference pins the executed prefix
+// positions back to the executed prefix after EVERY denoising step, including
+// the last; the engine only re-applies the where at the start of each step,
+// so the final chunk carries prefix + dt*v_t at those positions. Pin them on
+// the host after the loop (cheap: horizon*dim floats).
+Status PinRtcActionPrefix(const Pi05OfflineRequest& request, std::vector<float>* action) {
+  if (request.delay.data.empty()) return Status::Ok();
+  if (request.delay.shape.NumElements() != 1) {
+    return Status::InvalidArgument("PI0.5 RTC delay must be [1]");
+  }
+  if (request.action_prefix.data.empty()) {
+    return Status::InvalidArgument("PI0.5 RTC request is missing the action_prefix tensor");
+  }
+  std::int64_t delay = 0;
+  if (request.delay.dtype == DType::kInt32) {
+    delay = static_cast<std::int64_t>(*reinterpret_cast<const std::int32_t*>(request.delay.data.data()));
+  } else if (request.delay.dtype == DType::kInt64) {
+    delay = *reinterpret_cast<const std::int64_t*>(request.delay.data.data());
+  } else {
+    return Status::InvalidArgument("PI0.5 RTC delay must be int32 or int64");
+  }
+  if (delay <= 0) return Status::Ok();
+  if (request.action_prefix.dtype != DType::kFloat32) {
+    return Status::InvalidArgument("PI0.5 RTC action_prefix must be float32");
+  }
+  if (request.action_prefix.shape.dims.size() != 3) {
+    return Status::InvalidArgument("PI0.5 RTC action_prefix must have rank 3");
+  }
+  const std::int64_t horizon = request.action_prefix.shape.dims[1];
+  const std::int64_t dim = request.action_prefix.shape.dims[2];
+  if (request.action_prefix.shape.dims[0] != 1 || horizon != 50 || dim <= 0) {
+    return Status::InvalidArgument("PI0.5 RTC action_prefix must be [1,50,dim]");
+  }
+  if (delay > horizon) return Status::InvalidArgument("PI0.5 RTC delay exceeds the action horizon");
+  if (static_cast<std::int64_t>(action->size()) != horizon * dim) {
+    return Status::InvalidArgument("PI0.5 RTC final action size mismatch");
+  }
+  const auto* prefix = reinterpret_cast<const float*>(request.action_prefix.data.data());
+  for (std::int64_t position = 0; position < delay; ++position) {
+    for (std::int64_t channel = 0; channel < dim; ++channel) {
+      (*action)[static_cast<std::size_t>(position * dim + channel)] =
+          prefix[static_cast<std::size_t>(position * dim + channel)];
+    }
+  }
+  return Status::Ok();
+}
+
 Status CopyNormalizedAction(const DeviceTensor& x_t, cudaStream_t stream, std::vector<float>* action) {
   if (x_t.spec.dtype != DType::kFloat32) return Status::InvalidArgument("PI0.5 final x_t must be float32");
   if (x_t.spec.shape.dims.size() != 3) return Status::InvalidArgument("PI0.5 final x_t must have rank 3");
@@ -70,6 +117,7 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
                      std::size_t suffix_x_t_input_index,
                      std::size_t suffix_x_t_next_output_index,
                      cudaStream_t stream,
+                     cudaGraphExec_t suffix_graph_exec,
                      Pi05RunResult* result) {
   RETURN_IF_ERROR(timers->prefix_embed.Start(stream));
   RETURN_IF_ERROR(runtime::RunStage(prefix_embed, prefix_embed_plan, prefix_embed_workspace, stream));
@@ -85,14 +133,21 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
   DeviceTensor* next_x_t = &(*x_t_buffers)[1];
 
   RETURN_IF_ERROR(timers->suffix_loop.Start(stream));
-  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-    RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
+  if (suffix_graph_exec != nullptr) {
+    // Graph replay: the captured graph writes the final x_t into
+    // x_t_buffers[0] (10 steps = an even number of ping-pong swaps), which
+    // is where current_x_t already points.
+    RETURN_IF_ERROR(runtime::CheckCuda(cudaGraphLaunch(suffix_graph_exec, stream), "suffix CUDA-graph launch failed"));
+  } else {
+    for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+      RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
 
-    suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
-    suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
+      suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
+      suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
 
-    RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
-    std::swap(current_x_t, next_x_t);
+      RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
+      std::swap(current_x_t, next_x_t);
+    }
   }
   RETURN_IF_ERROR(timers->suffix_loop.Stop(stream));
 
@@ -117,10 +172,20 @@ Pi05OfflineRunner::Pi05OfflineRunner(std::filesystem::path engine_dir)
       prefix_lm_(engine_dir_ / std::string(pi05::kPrefixLmEngine)),
       suffix_step_(engine_dir_ / std::string(pi05::kSuffixStepEngine)) {}
 
-Pi05OfflineRunner::~Pi05OfflineRunner() = default;
+Pi05OfflineRunner::~Pi05OfflineRunner() {
+  if (suffix_graph_exec_ != nullptr) {
+    cudaGraphExecDestroy(suffix_graph_exec_);
+    suffix_graph_exec_ = nullptr;
+  }
+}
 
 Status Pi05OfflineRunner::Load() {
   auto start = std::chrono::steady_clock::now();
+  suffix_graph_ready_ = false;
+  suffix_graph_exec_ = nullptr;
+  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+    timestep_values_[step] = 1.0F + static_cast<float>(step) * pi05::kDefaultDt;
+  }
   RETURN_IF_ERROR(runtime::LoadEngine(&prefix_embed_));
   RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
   RETURN_IF_ERROR(runtime::LoadEngine(&suffix_step_));
@@ -161,6 +226,17 @@ Status Pi05OfflineRunner::Load() {
   }
   if (has_embodiment_input_) {
     RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*embodiment_spec, &embodiment_id_));
+  }
+  const auto* delay_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputDelay);
+  const auto* action_prefix_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputActionPrefix);
+  has_delay_input_ = delay_spec != nullptr;
+  has_action_prefix_input_ = action_prefix_spec != nullptr;
+  if (has_delay_input_ != has_action_prefix_input_) {
+    return Status::InvalidArgument("PI0.5 RTC suffix engine must carry delay and action_prefix together");
+  }
+  if (has_delay_input_) {
+    RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*delay_spec, &delay_));
+    RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*action_prefix_spec, &action_prefix_));
   }
 
   RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_embed_, &prefix_embed_plan_));
@@ -203,6 +279,11 @@ Status Pi05OfflineRunner::Load() {
   if (has_embodiment_input_) {
     RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputEmbodimentId, embodiment_id_));
   }
+  if (has_delay_input_) {
+    RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputDelay, delay_));
+    RETURN_IF_ERROR(
+        runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputActionPrefix, action_prefix_));
+  }
   RETURN_IF_ERROR(runtime::FindStageInputIndex(suffix_step_plan_, pi05::kSuffixStepInputXT, &suffix_x_t_input_index_));
 
   suffix_x_t_next_output_index_ = suffix_step_.outputs().size();
@@ -218,7 +299,8 @@ Status Pi05OfflineRunner::Load() {
   for (const auto& spec : suffix_step_.inputs()) {
     if (spec.name == pi05::kSuffixStepInputPrefixPadMasks || spec.name == pi05::kSuffixStepInputXT ||
         spec.name == pi05::kSuffixStepInputTimestep || spec.name == pi05::kSuffixStepInputDt ||
-        spec.name == pi05::kSuffixStepInputState || spec.name == pi05::kSuffixStepInputEmbodimentId) {
+        spec.name == pi05::kSuffixStepInputState || spec.name == pi05::kSuffixStepInputEmbodimentId ||
+        spec.name == pi05::kSuffixStepInputDelay || spec.name == pi05::kSuffixStepInputActionPrefix) {
       continue;
     }
     auto cache_it = prefix_lm_workspace_.named_outputs.find(spec.name);
@@ -255,15 +337,72 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
     }
     RETURN_IF_ERROR(runtime::CopyHostToDevice(request.embodiment_id, &embodiment_id_, stream_.get()));
   }
+  if (has_delay_input_) {
+    if (request.delay.data.empty() || request.action_prefix.data.empty()) {
+      return Status::InvalidArgument("PI0.5 RTC suffix engine requires delay and action_prefix tensors");
+    }
+    RETURN_IF_ERROR(runtime::CopyHostToDevice(request.delay, &delay_, stream_.get()));
+    RETURN_IF_ERROR(runtime::CopyHostToDevice(request.action_prefix, &action_prefix_, stream_.get()));
+  }
 
   auto start = std::chrono::steady_clock::now();
   Status status = RunPi05Stages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
                                 &prefix_embed_plan_, &prefix_lm_plan_, &suffix_step_plan_, &prefix_embed_workspace_,
                                 &prefix_lm_workspace_, &suffix_step_workspace_, &timers_, suffix_x_t_input_index_,
-                                suffix_x_t_next_output_index_, stream_.get(), result);
+                                suffix_x_t_next_output_index_, stream_.get(), suffix_graph_exec_, result);
   if (status.ok()) status = stream_.Synchronize();
+  if (status.ok() && has_delay_input_) {
+    status = PinRtcActionPrefix(request, &result->action);
+  }
+  if (status.ok()) status = CaptureSuffixGraph();
   result->infer_ms = runtime::ElapsedMs(start);
   return status;
+}
+
+Status Pi05OfflineRunner::CaptureSuffixGraph() {
+  if (suffix_graph_ready_) return Status::Ok();
+  // Attempt exactly once, after the first successful (warmup) run so TRT's
+  // lazy per-context allocations exist. Any failure keeps the eager path.
+  suffix_graph_ready_ = true;
+
+  DeviceTensor* current_x_t = &x_t_buffers_[0];
+  DeviceTensor* next_x_t = &x_t_buffers_[1];
+
+  Status capture = runtime::CheckCuda(
+      cudaStreamBeginCapture(stream_.get(), cudaStreamCaptureModeThreadLocal), "begin suffix CUDA-graph capture");
+  if (!capture.ok()) return Status::Ok();
+
+  for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+    // The captured H2D memcpy node keeps the HOST POINTER and re-reads it at
+    // every launch, so the source must live in stable member storage (a
+    // function-local would be a dead stack slot by replay time). The value is
+    // a fixed schedule constant, so the captured node is valid forever.
+    capture = runtime::CheckCuda(
+        cudaMemcpyAsync(timestep_.data.get(), &timestep_values_[step], sizeof(float), cudaMemcpyHostToDevice,
+                        stream_.get()),
+        "captured timestep memcpy failed");
+    if (!capture.ok()) break;
+    suffix_step_plan_.input_views[suffix_x_t_input_index_] = current_x_t->view();
+    suffix_step_workspace_.output_views[suffix_x_t_next_output_index_] = next_x_t->view();
+    capture = runtime::RunStage(suffix_step_, &suffix_step_plan_, &suffix_step_workspace_, stream_.get());
+    if (!capture.ok()) break;
+    std::swap(current_x_t, next_x_t);
+  }
+
+  cudaGraph_t graph = nullptr;
+  cudaError_t end_status = cudaStreamEndCapture(stream_.get(), &graph);
+  if (!capture.ok() || end_status != cudaSuccess) {
+    if (end_status == cudaSuccess && graph != nullptr) {
+      cudaGraphDestroy(graph);
+    }
+    return Status::Ok();
+  }
+  cudaError_t instantiate_status = cudaGraphInstantiate(&suffix_graph_exec_, graph, 0);
+  cudaGraphDestroy(graph);
+  if (instantiate_status != cudaSuccess) {
+    suffix_graph_exec_ = nullptr;
+  }
+  return Status::Ok();
 }
 
 double Pi05OfflineRunner::load_ms() const { return load_ms_; }
@@ -281,6 +420,12 @@ std::vector<TensorSpec> Pi05OfflineRunner::input_specs() const {
   }
   if (has_embodiment_input_) {
     specs.push_back(embodiment_id_.spec);
+  }
+  if (has_delay_input_) {
+    specs.push_back(delay_.spec);
+  }
+  if (has_action_prefix_input_) {
+    specs.push_back(action_prefix_.spec);
   }
   return specs;
 }

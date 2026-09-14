@@ -33,6 +33,7 @@ __all__ = [
     "build_pi05_runner",
     "build_pi06_airbot_runner",
     "build_pi06_heterogeneous_runner",
+    "build_pi06_rtc_runner",
     "build_semanticvla_runner",
     "build_smolvla_runner",
     "build_starvla_runner",
@@ -48,6 +49,7 @@ def __getattr__(name: str):
         "Pi05RunnerWrapper",
         "Pi06AirbotRunnerWrapper",
         "Pi06HeterogeneousRunnerWrapper",
+        "Pi06RtcRunnerWrapper",
         "SemanticVlaRunnerWrapper",
         "SmolVlaRunnerWrapper",
         "StarVlaRunnerWrapper",
@@ -59,6 +61,7 @@ def __getattr__(name: str):
         "build_pi06_airbot_runner",
         "build_pi06_heterogeneous_runner",
     "build_pi06_heterogeneous_runner",
+        "build_pi06_rtc_runner",
         "build_semanticvla_runner",
         "build_smolvla_runner",
         "build_starvla_runner",
@@ -86,6 +89,7 @@ def __getattr__(name: str):
             Pi06HeterogeneousRunnerWrapper,
             build_pi06_heterogeneous_runner,
         )
+        from pi_cpp.pi06_rtc import Pi06RtcRunnerWrapper, build_pi06_rtc_runner
 
         globals()["FastWamRunnerWrapper"] = FastWamRunnerWrapper
         globals()["Dit4DitRunnerWrapper"] = Dit4DitRunnerWrapper
@@ -94,6 +98,7 @@ def __getattr__(name: str):
         globals()["Pi05RunnerWrapper"] = Pi05RunnerWrapper
         globals()["Pi06AirbotRunnerWrapper"] = Pi06AirbotRunnerWrapper
         globals()["Pi06HeterogeneousRunnerWrapper"] = Pi06HeterogeneousRunnerWrapper
+        globals()["Pi06RtcRunnerWrapper"] = Pi06RtcRunnerWrapper
         globals()["SemanticVlaRunnerWrapper"] = SemanticVlaRunnerWrapper
         globals()["SmolVlaRunnerWrapper"] = SmolVlaRunnerWrapper
         globals()["StarVlaRunnerWrapper"] = StarVlaRunnerWrapper
@@ -104,6 +109,7 @@ def __getattr__(name: str):
         globals()["build_pi05_runner"] = build_pi05_runner
         globals()["build_pi06_airbot_runner"] = build_pi06_airbot_runner
         globals()["build_pi06_heterogeneous_runner"] = build_pi06_heterogeneous_runner
+        globals()["build_pi06_rtc_runner"] = build_pi06_rtc_runner
         globals()["build_semanticvla_runner"] = build_semanticvla_runner
         globals()["build_smolvla_runner"] = build_smolvla_runner
         globals()["build_starvla_runner"] = build_starvla_runner

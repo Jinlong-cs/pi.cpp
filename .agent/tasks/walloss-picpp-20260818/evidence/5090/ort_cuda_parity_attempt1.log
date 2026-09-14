@@ -1,0 +1,44 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.8.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+[1;31m2026-08-20 07:12:58.814299616 [E:onnxruntime:, inference_session.cc:2544 operator()] Exception during initialization: /onnxruntime_src/onnxruntime/core/optimizer/transformer_memcpy.cc:450 bool onnxruntime::TransformerMemcpyImpl::ProcessInitializers(const onnxruntime::KernelRegistryManager&, const onnxruntime::InitializedTensorSet&, const onnxruntime::logging::Logger&) status.IsOK() was false. Failed to find kernel for SimplifiedLayerNormalization(1) (node:'/visual/blocks.0/norm1/Mul_1/SimplifiedLayerNormFusion/' ep:'CUDAExecutionProvider'). Op with name (/visual/blocks.0/norm1/Mul_1/SimplifiedLayerNormFusion/) domain () and type (SimplifiedLayerNormalization) kernel is not supported in CUDAExecutionProvider. Encountered following errors: (Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float),), but the node in the model has the following type (tensor(bfloat16))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(double),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(bfloat16))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(bfloat16),), but the node in the model has the following type (tensor(float))
+)
+[m
+Traceback (most recent call last):
+  File "/work/manifests/ort_cuda_parity.py", line 394, in <module>
+    main()
+  File "/work/manifests/ort_cuda_parity.py", line 270, in main
+    prefix = StrictCudaStage("prefix_embed")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/manifests/ort_cuda_parity.py", line 136, in __init__
+    self.session = ort.InferenceSession(
+                   ^^^^^^^^^^^^^^^^^^^^^
+  File "/work/env/ort_py/onnxruntime/capi/onnxruntime_inference_collection.py", line 485, in __init__
+    self._create_inference_session(providers, provider_options, disabled_optimizers)
+  File "/work/env/ort_py/onnxruntime/capi/onnxruntime_inference_collection.py", line 584, in _create_inference_session
+    sess.initialize_session(providers, provider_options, disabled_optimizers)
+onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Exception during initialization: /onnxruntime_src/onnxruntime/core/optimizer/transformer_memcpy.cc:450 bool onnxruntime::TransformerMemcpyImpl::ProcessInitializers(const onnxruntime::KernelRegistryManager&, const onnxruntime::InitializedTensorSet&, const onnxruntime::logging::Logger&) status.IsOK() was false. Failed to find kernel for SimplifiedLayerNormalization(1) (node:'/visual/blocks.0/norm1/Mul_1/SimplifiedLayerNormFusion/' ep:'CUDAExecutionProvider'). Op with name (/visual/blocks.0/norm1/Mul_1/SimplifiedLayerNormFusion/) domain () and type (SimplifiedLayerNormalization) kernel is not supported in CUDAExecutionProvider. Encountered following errors: (Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float),), but the node in the model has the following type (tensor(bfloat16))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(double),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(float))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(float16),), but the node in the model has the following type (tensor(bfloat16))
+Kernel found kernel in the supported version range (node_version: 1). However the types are incompatible. This op has been implemented only for the following types (tensor(bfloat16),), but the node in the model has the following type (tensor(float))
+)
+

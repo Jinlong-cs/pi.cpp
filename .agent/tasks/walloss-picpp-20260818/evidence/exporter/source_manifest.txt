@@ -1,0 +1,20 @@
+recorded_at=2026-08-19T14:08:28+08:00
+base_commit=a1b1571e5f26692463412cf9065ebd3d547a2f6d
+branch=codex/walloss-picpp-20260818
+worktree_status=uncommitted task-owned implementation
+
+503a4c14d5893efe1940d8b413a77ca9fe24189300e511cefd5d47dd2213bab5  python/pi_cpp/walloss/exporter.py
+696523d6128aca4d69197f43bf95c642df3c732d4f3bb91aecc8dcaf9ff9ee73  python/pi_cpp/walloss/torch_wrappers.py
+06c87d8c8ce44368bd7d969e849f8c2986943b48400e58eee6539521550e2249  python/pi_cpp/walloss/cache_bridge.py
+9165ce7a627e3595cfa2f556428634cc5ae520d2ba14268f270234f17bf1ca3e  python/pi_cpp/walloss/flow_math.py
+4b2ea265ea7ef2de8bcc7c6f812189ae08da6afb337b86ce6d59beb58289b1b7  python/pi_cpp/walloss/io_manifest.py
+e7d58f1dcaab35f1939b0f44b252c6c0c3bf5bffc9b8c2d41a6bde2d38858a91  python/pi_cpp/walloss/tests/test_torch_wrappers.py
+89a5f2628f23699a4ef3846baaaf06e93c60bb178cd5e16522fb9515bae9048b  python/pi_cpp/walloss/tests/test_cache_bridge.py
+68b3e197e7267fe581b4fece1a51dc9721db9cbff6a4e0d975525c873df1d0cb  python/pi_cpp/walloss/tests/test_contract_preprocessing.py
+fd52f6e1441c550e79f241475dc0ff47ad61cfd6f24e3957488cda97b6eaa7b5  python/pi_cpp/walloss/tests/test_checkpoint_manifest.py
+5ad9c85a7f9c97b44657bc10b7ba0495bc3406781490df4528015455b3f50ea5  recipes/walloss/manifests/stage_io_manifest.json
+6ac072b7d89a89b5ed0ed75cd115850f06773c42cb32a89355d0ebbeb3e5690a  recipes/walloss/manifests/processor_capture.json
+47e65bfa1c393f9ce5be9495052bcd8ccba0f3b35d6218f4a20247dc04a512f2  recipes/walloss/patches/external_x0.patch
+
+The full task-owned file inventory can be regenerated with:
+find python/pi_cpp/walloss recipes/walloss -type f ! -path '*/__pycache__/*' -print0 | sort -z | xargs -0 shasum -a 256

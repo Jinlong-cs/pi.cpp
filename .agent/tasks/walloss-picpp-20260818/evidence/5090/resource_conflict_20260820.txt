@@ -1,0 +1,8 @@
+2026-08-20T12:37:36+08:00
+USER         PID    PPID                  STARTED     ELAPSED CMD
+root       54170   54146 Thu Aug 20 12:24:36 2026       12:59 python -u /task/src/train_recovery.py --repo /workspace/DStereo --expected-config-sha256 dc736cfbc2499feebfc1f57f6907ff70b3c8eb65f03f445c4addd392f9f7a80a --expected-model-source-sha256 d9187285aef9c17d246e7fa10df60ad4fe9ff60203521388263d404c3b0bb908 --init-checkpoint /inputs/init.pth.tar --expected-init-sha256 7def9eb7ddd8c6850b6272cd719d9ba11790612e1cf54b00e0e114f874044c5e --cases /task/src/resolution_cases.json --arm exact09 --list /mnt/sznas/yzf/stereo_data/DiscoverStereo/train_list.txt --expected-list-sha256 656b82584d6eba4dd5c3dfef7b1e69349cf58491b2b102242bb4482cc11eff8e --data-root /mnt/sznas/yzf/stereo_data/DiscoverStereo --output-dir /task/training/exact09 --target-step 5000 --max-steps 30000 --batch-size 8 --checkpoint-interval 1000 --log-interval 100
+NVIDIA GeForce RTX 5090 D v2, 74 %, 10225 MiB, 13749 MiB, 266.72 W, 57
+54170, python, 10202 MiB
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p2  1.8T  1.6T  118G  94% /
+TARGET_ABSENT
