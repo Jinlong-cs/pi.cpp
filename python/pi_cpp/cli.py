@@ -14,6 +14,7 @@ from pi_cpp.commands.latency import run_latency
 from pi_cpp.commands.package import PackageConfig
 from pi_cpp.commands.server import run_server
 from pi_cpp.commands.toolchain import BuildConfig, CalibrateConfig, GraphConfig
+from pi_cpp.commands.verify import VerifyConfig
 
 EvalModel = Literal["pi05", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "smolvla", "dit4dit", "groot", "starvla"]
 LatencyModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
@@ -56,6 +57,7 @@ class ServerConfig:
     model_dir: Path
     host: str = "0.0.0.0"
     port: int = 8000
+    authorize: bool = False
 
 
 @dataclass(kw_only=True)
@@ -73,6 +75,7 @@ Command = (
     | Annotated[GraphConfig, tyro.conf.subcommand(name="graph")]
     | Annotated[CalibrateConfig, tyro.conf.subcommand(name="calibrate")]
     | Annotated[BuildConfig, tyro.conf.subcommand(name="build")]
+    | Annotated[VerifyConfig, tyro.conf.subcommand(name="verify")]
     | Annotated[ServerConfig, tyro.conf.subcommand(name="server")]
     | Annotated[ClientConfig, tyro.conf.subcommand(name="client")]
 )
@@ -117,12 +120,18 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_toolchain(command)
 
+    if isinstance(command, VerifyConfig):
+        from pi_cpp.commands.verify import run_verify
+
+        return run_verify(command)
+
     if isinstance(command, ServerConfig):
         return run_server(
             model=command.model,
             model_dir=command.model_dir,
             host=command.host,
             port=command.port,
+            authorize=command.authorize,
         )
 
     if isinstance(command, ClientConfig):
