@@ -48,7 +48,9 @@ def golden_case_ids(golden_root: Path) -> tuple[str, ...]:
 def load_golden_raw32(golden_root: Path, case_id: str) -> np.ndarray:
     golden = _read_json(golden_root / "manifest.json")
     record = golden["authoritative_public_api_raw32"][case_id]
-    path = golden_root / record["path"]
+    path = golden_root.parent / record["path"]
+    if not record["path"].startswith("golden/") or not path.is_file():
+        raise ValueError(f"golden record path {record['path']!r} is not a file under the golden root")
     value = np.load(path, allow_pickle=False).astype(np.float32)
     if payload_hash(value) != record["sha256_payload"]:
         raise ValueError(f"golden payload hash mismatch for {case_id}")
