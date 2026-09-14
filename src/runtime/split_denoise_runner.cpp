@@ -1,4 +1,4 @@
-#include "pi_cpp/runtime/pi05_offline.hpp"
+#include "pi_cpp/runtime/split_denoise_runner.hpp"
 
 #include <cuda_runtime_api.h>
 
@@ -23,18 +23,18 @@ using runtime::DeviceTensor;
 using runtime::StagePlan;
 using runtime::StageWorkspace;
 
-Status ValidatePi05Request(const Pi05OfflineRequest& request) {
-  if (request.image.data.empty()) return Status::InvalidArgument("PI0.5 request is missing image tensor data");
+Status ValidateSplitDenoiseRequest(const SplitDenoiseRequest& request) {
+  if (request.image.data.empty()) return Status::InvalidArgument("split-denoise request is missing image tensor data");
   if (request.image_mask.data.empty()) {
-    return Status::InvalidArgument("PI0.5 request is missing image_mask tensor data");
+    return Status::InvalidArgument("split-denoise request is missing image_mask tensor data");
   }
   if (request.tokenized_prompt.data.empty()) {
-    return Status::InvalidArgument("PI0.5 request is missing tokenized_prompt tensor data");
+    return Status::InvalidArgument("split-denoise request is missing tokenized_prompt tensor data");
   }
   if (request.tokenized_prompt_mask.data.empty()) {
-    return Status::InvalidArgument("PI0.5 request is missing tokenized_prompt_mask tensor data");
+    return Status::InvalidArgument("split-denoise request is missing tokenized_prompt_mask tensor data");
   }
-  if (request.x_t.data.empty()) return Status::InvalidArgument("PI0.5 request is missing x_t tensor data");
+  if (request.x_t.data.empty()) return Status::InvalidArgument("split-denoise request is missing x_t tensor data");
   return Status::Ok();
 }
 
@@ -43,13 +43,13 @@ Status ValidatePi05Request(const Pi05OfflineRequest& request) {
 // the last; the engine only re-applies the where at the start of each step,
 // so the final chunk carries prefix + dt*v_t at those positions. Pin them on
 // the host after the loop (cheap: horizon*dim floats).
-Status PinRtcActionPrefix(const Pi05OfflineRequest& request, std::vector<float>* action) {
+Status PinRtcActionPrefix(const SplitDenoiseRequest& request, std::vector<float>* action) {
   if (request.delay.data.empty()) return Status::Ok();
   if (request.delay.shape.NumElements() != 1) {
-    return Status::InvalidArgument("PI0.5 RTC delay must be [1]");
+    return Status::InvalidArgument("RTC delay must be [1]");
   }
   if (request.action_prefix.data.empty()) {
-    return Status::InvalidArgument("PI0.5 RTC request is missing the action_prefix tensor");
+    return Status::InvalidArgument("RTC request is missing the action_prefix tensor");
   }
   std::int64_t delay = 0;
   if (request.delay.dtype == DType::kInt32) {
@@ -57,23 +57,23 @@ Status PinRtcActionPrefix(const Pi05OfflineRequest& request, std::vector<float>*
   } else if (request.delay.dtype == DType::kInt64) {
     delay = *reinterpret_cast<const std::int64_t*>(request.delay.data.data());
   } else {
-    return Status::InvalidArgument("PI0.5 RTC delay must be int32 or int64");
+    return Status::InvalidArgument("RTC delay must be int32 or int64");
   }
   if (delay <= 0) return Status::Ok();
   if (request.action_prefix.dtype != DType::kFloat32) {
-    return Status::InvalidArgument("PI0.5 RTC action_prefix must be float32");
+    return Status::InvalidArgument("RTC action_prefix must be float32");
   }
   if (request.action_prefix.shape.dims.size() != 3) {
-    return Status::InvalidArgument("PI0.5 RTC action_prefix must have rank 3");
+    return Status::InvalidArgument("RTC action_prefix must have rank 3");
   }
   const std::int64_t horizon = request.action_prefix.shape.dims[1];
   const std::int64_t dim = request.action_prefix.shape.dims[2];
   if (request.action_prefix.shape.dims[0] != 1 || horizon != 50 || dim <= 0) {
-    return Status::InvalidArgument("PI0.5 RTC action_prefix must be [1,50,dim]");
+    return Status::InvalidArgument("RTC action_prefix must be [1,50,dim]");
   }
-  if (delay > horizon) return Status::InvalidArgument("PI0.5 RTC delay exceeds the action horizon");
+  if (delay > horizon) return Status::InvalidArgument("RTC delay exceeds the action horizon");
   if (static_cast<std::int64_t>(action->size()) != horizon * dim) {
-    return Status::InvalidArgument("PI0.5 RTC final action size mismatch");
+    return Status::InvalidArgument("RTC final action size mismatch");
   }
   const auto* prefix = reinterpret_cast<const float*>(request.action_prefix.data.data());
   for (std::int64_t position = 0; position < delay; ++position) {
@@ -86,13 +86,13 @@ Status PinRtcActionPrefix(const Pi05OfflineRequest& request, std::vector<float>*
 }
 
 Status CopyNormalizedAction(const DeviceTensor& x_t, cudaStream_t stream, std::vector<float>* action) {
-  if (x_t.spec.dtype != DType::kFloat32) return Status::InvalidArgument("PI0.5 final x_t must be float32");
-  if (x_t.spec.shape.dims.size() != 3) return Status::InvalidArgument("PI0.5 final x_t must have rank 3");
+  if (x_t.spec.dtype != DType::kFloat32) return Status::InvalidArgument("split-denoise final x_t must be float32");
+  if (x_t.spec.shape.dims.size() != 3) return Status::InvalidArgument("split-denoise final x_t must have rank 3");
   const int64_t batch = x_t.spec.shape.dims[0];
   const int64_t horizon = x_t.spec.shape.dims[1];
   const int64_t latent_dim = x_t.spec.shape.dims[2];
   if (batch <= 0 || horizon <= 0 || latent_dim <= 0) {
-    return Status::InvalidArgument("PI0.5 final x_t has invalid shape");
+    return Status::InvalidArgument("split-denoise final x_t has invalid shape");
   }
 
   action->assign(static_cast<std::size_t>(x_t.spec.shape.NumElements()), 0.0F);
@@ -101,7 +101,7 @@ Status CopyNormalizedAction(const DeviceTensor& x_t, cudaStream_t stream, std::v
   return Status::Ok();
 }
 
-Status RunPi05Stages(TrtEngine& prefix_embed,
+Status RunSplitDenoiseStages(TrtEngine& prefix_embed,
                      TrtEngine& prefix_lm,
                      TrtEngine& suffix_step,
                      std::array<DeviceTensor, 2>* x_t_buffers,
@@ -113,12 +113,12 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
                      StageWorkspace* prefix_embed_workspace,
                      StageWorkspace* prefix_lm_workspace,
                      StageWorkspace* suffix_step_workspace,
-                     Pi05StageTimers* timers,
+                     SplitDenoiseStageTimers* timers,
                      std::size_t suffix_x_t_input_index,
                      std::size_t suffix_x_t_next_output_index,
                      cudaStream_t stream,
                      cudaGraphExec_t suffix_graph_exec,
-                     Pi05RunResult* result) {
+                     SplitDenoiseResult* result) {
   RETURN_IF_ERROR(timers->prefix_embed.Start(stream));
   RETURN_IF_ERROR(runtime::RunStage(prefix_embed, prefix_embed_plan, prefix_embed_workspace, stream));
   RETURN_IF_ERROR(timers->prefix_embed.Stop(stream));
@@ -160,26 +160,26 @@ Status RunPi05Stages(TrtEngine& prefix_embed,
 
 }  // namespace
 
-Status Pi05StageTimers::Init() {
+Status SplitDenoiseStageTimers::Init() {
   RETURN_IF_ERROR(prefix_embed.Init(std::string(pi05::kPrefixEmbedStage)));
   RETURN_IF_ERROR(prefix_lm.Init(std::string(pi05::kPrefixLmStage)));
   return suffix_loop.Init(std::string(pi05::kSuffixLoopStage));
 }
 
-Pi05OfflineRunner::Pi05OfflineRunner(std::filesystem::path engine_dir)
+SplitDenoiseRunner::SplitDenoiseRunner(std::filesystem::path engine_dir)
     : engine_dir_(std::move(engine_dir)),
       prefix_embed_(engine_dir_ / std::string(pi05::kPrefixEmbedEngine)),
       prefix_lm_(engine_dir_ / std::string(pi05::kPrefixLmEngine)),
       suffix_step_(engine_dir_ / std::string(pi05::kSuffixStepEngine)) {}
 
-Pi05OfflineRunner::~Pi05OfflineRunner() {
+SplitDenoiseRunner::~SplitDenoiseRunner() {
   if (suffix_graph_exec_ != nullptr) {
     cudaGraphExecDestroy(suffix_graph_exec_);
     suffix_graph_exec_ = nullptr;
   }
 }
 
-Status Pi05OfflineRunner::Load() {
+Status SplitDenoiseRunner::Load() {
   auto start = std::chrono::steady_clock::now();
   suffix_graph_ready_ = false;
   suffix_graph_exec_ = nullptr;
@@ -206,7 +206,7 @@ Status Pi05OfflineRunner::Load() {
   const auto* dt_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputDt);
   if (image_spec == nullptr || image_mask_spec == nullptr || tokenized_prompt_spec == nullptr ||
       tokenized_prompt_mask_spec == nullptr || x_t_spec == nullptr || timestep_spec == nullptr || dt_spec == nullptr) {
-    return Status::InvalidArgument("PI0.5 engine tensor contract is missing a required input tensor");
+    return Status::InvalidArgument("split-denoise engine tensor contract is missing a required input tensor");
   }
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*image_spec, &image_));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*image_mask_spec, &image_mask_));
@@ -232,7 +232,7 @@ Status Pi05OfflineRunner::Load() {
   has_delay_input_ = delay_spec != nullptr;
   has_action_prefix_input_ = action_prefix_spec != nullptr;
   if (has_delay_input_ != has_action_prefix_input_) {
-    return Status::InvalidArgument("PI0.5 RTC suffix engine must carry delay and action_prefix together");
+    return Status::InvalidArgument("RTC suffix engine must carry delay and action_prefix together");
   }
   if (has_delay_input_) {
     RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*delay_spec, &delay_));
@@ -260,7 +260,7 @@ Status Pi05OfflineRunner::Load() {
       prefix_position_ids == prefix_embed_workspace_.named_outputs.end() ||
       prefix_attention_mask_4d == prefix_embed_workspace_.named_outputs.end() ||
       prefix_pad_masks == prefix_embed_workspace_.named_outputs.end()) {
-    return Status::InvalidArgument("prefix_embed is missing a required PI0.5 output tensor");
+    return Status::InvalidArgument("prefix_embed is missing a required split-denoise output tensor");
   }
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixEmbs, *prefix_embs->second));
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixPositionIds,
@@ -314,12 +314,12 @@ Status Pi05OfflineRunner::Load() {
   return Status::Ok();
 }
 
-Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResult* result) {
-  if (result == nullptr) return Status::InvalidArgument("PI0.5 result is null");
-  *result = Pi05RunResult{};
+Status SplitDenoiseRunner::RunOnce(const SplitDenoiseRequest& request, SplitDenoiseResult* result) {
+  if (result == nullptr) return Status::InvalidArgument("split-denoise result is null");
+  *result = SplitDenoiseResult{};
   result->load_ms = load_ms_;
 
-  RETURN_IF_ERROR(ValidatePi05Request(request));
+  RETURN_IF_ERROR(ValidateSplitDenoiseRequest(request));
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.image, &image_, stream_.get()));
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.image_mask, &image_mask_, stream_.get()));
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.tokenized_prompt, &tokenized_prompt_, stream_.get()));
@@ -327,26 +327,26 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
   RETURN_IF_ERROR(runtime::CopyHostToDevice(request.x_t, &x_t_buffers_[0], stream_.get()));
   if (has_state_input_) {
     if (request.state.data.empty()) {
-      return Status::InvalidArgument("PI0.5 suffix engine requires a state tensor");
+      return Status::InvalidArgument("split-denoise suffix engine requires a state tensor");
     }
     RETURN_IF_ERROR(runtime::CopyHostToDevice(request.state, &state_, stream_.get()));
   }
   if (has_embodiment_input_) {
     if (request.embodiment_id.data.empty()) {
-      return Status::InvalidArgument("PI0.5 suffix engine requires an embodiment_id tensor");
+      return Status::InvalidArgument("split-denoise suffix engine requires an embodiment_id tensor");
     }
     RETURN_IF_ERROR(runtime::CopyHostToDevice(request.embodiment_id, &embodiment_id_, stream_.get()));
   }
   if (has_delay_input_) {
     if (request.delay.data.empty() || request.action_prefix.data.empty()) {
-      return Status::InvalidArgument("PI0.5 RTC suffix engine requires delay and action_prefix tensors");
+      return Status::InvalidArgument("RTC suffix engine requires delay and action_prefix tensors");
     }
     RETURN_IF_ERROR(runtime::CopyHostToDevice(request.delay, &delay_, stream_.get()));
     RETURN_IF_ERROR(runtime::CopyHostToDevice(request.action_prefix, &action_prefix_, stream_.get()));
   }
 
   auto start = std::chrono::steady_clock::now();
-  Status status = RunPi05Stages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
+  Status status = RunSplitDenoiseStages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
                                 &prefix_embed_plan_, &prefix_lm_plan_, &suffix_step_plan_, &prefix_embed_workspace_,
                                 &prefix_lm_workspace_, &suffix_step_workspace_, &timers_, suffix_x_t_input_index_,
                                 suffix_x_t_next_output_index_, stream_.get(), suffix_graph_exec_, result);
@@ -359,7 +359,7 @@ Status Pi05OfflineRunner::RunOnce(const Pi05OfflineRequest& request, Pi05RunResu
   return status;
 }
 
-Status Pi05OfflineRunner::CaptureSuffixGraph() {
+Status SplitDenoiseRunner::CaptureSuffixGraph() {
   if (suffix_graph_ready_) return Status::Ok();
   // Attempt exactly once, after the first successful (warmup) run so TRT's
   // lazy per-context allocations exist. Any failure keeps the eager path.
@@ -405,9 +405,9 @@ Status Pi05OfflineRunner::CaptureSuffixGraph() {
   return Status::Ok();
 }
 
-double Pi05OfflineRunner::load_ms() const { return load_ms_; }
+double SplitDenoiseRunner::load_ms() const { return load_ms_; }
 
-std::vector<TensorSpec> Pi05OfflineRunner::input_specs() const {
+std::vector<TensorSpec> SplitDenoiseRunner::input_specs() const {
   std::vector<TensorSpec> specs = {
       image_.spec,
       image_mask_.spec,
