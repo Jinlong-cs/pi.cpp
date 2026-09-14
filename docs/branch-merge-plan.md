@@ -21,18 +21,40 @@ upstream or superseded.
 
 ## Merge order
 
+> **Executed 2026-09-14** — see the log below; the doc order was adjusted:
+> `fix/trt-fast-engine-read` originally branched from the SDK commit
+> `a1b1571`, so the SDK merged first to keep the fix PR to its single
+> 7-line change.
+
 ```text
-main ── fix/trt-fast-engine-read          (1) isolated file-touch, safest first
-    └─ feat/pi06-airbot-runtime           (2)
-         └─ feat/pi06-heterogeneous-runtime (3) builds on airbot
-              └─ feat/pi06-rtc-runtime    (4) builds on heterogeneous
-    └─ feat/v0.2-optimization-sdk         (5) independent python layer, last
+main ── feat/v0.2-optimization-sdk          (1) PR #1 — pure python layer, self-contained
+    ├─ fix/trt-fast-engine-read             (2) PR #3 — rebased to the 1-commit engine read fix
+    ├─ feat/pi06-airbot-runtime             (3) PR #2
+    │    └─ feat/pi06-heterogeneous-runtime (4) PR #4 — builds on airbot
+    │         └─ feat/pi06-rtc-runtime      (5) PR #5 — builds on heterogeneous
 ```
 
-Steps 2-4 stack chronologically on shared files
+The pi06 steps stack chronologically on shared files
 (`src/runtime/pi05_offline_tensorrt.cpp`, `python/pi_cpp/cli.py`, the
-per-model adapters), so rebase each onto its parent's merged head and
-resolve once, in order.
+per-model adapters), so rebase each onto main's merged head and resolve
+once, in order. Rebase drops the duplicated predecessor commits (airbot's
+commit is contained in heterogeneous, heterogeneous in rtc).
+
+### Executed log (2026-09-14)
+
+| # | Branch | PR | Merge commit | Tag |
+|---|---|---|---|---|
+| — | docs (architecture/schema/plan) | direct push | `9cea37e` | — |
+| 1 | feat/v0.2-optimization-sdk | #1 (was DRAFT) | `6b7406d` | `merge-opt-sdk` |
+| 2 | fix/trt-fast-engine-read | #3 (rebase: 2→1 commit) | cc71bd5 | `merge-engine-read-fix` |
+| 3 | feat/pi06-airbot-runtime | #2 | `1b751b2` | `merge-pi06-airbot` |
+| 4 | feat/pi06-heterogeneous-runtime | #4 (new) | `e90a831` | `merge-pi06-heterogeneous` |
+| 5 | feat/pi06-rtc-runtime | #5 (new) | `02ab124` | `merge-pi06-rtc` |
+| — | test: tolerance-compare sparse-delta gate scales | direct push | `ee30abc` | — |
+
+The trap-fix history (`cudaGraphInstantiate` signature, timestep host
+pointer, debug-print cleanup) survived the rebase as individual commits on
+main — not squashed.
 
 ## Gate per merge
 
