@@ -174,6 +174,29 @@ See the [Optimization SDK workflow](docs/optimization-sdk.md) for QDQ,
 rollback, FP/QDQ comparison, TensorRT build, engine inspection, and stage
 benchmark commands.
 
+## Strategy assets
+
+Deployment strategies ship as data and tool behavior, not prose:
+
+- `recipes/` — reproducible recipes with their evidence, e.g.
+  `recipes/fastwam/agx-orin-int8.json`: the QDQ islands, the nodes kept in
+  FP16, and the closed-loop result the route was accepted on.
+- `docs/` — strategy write-ups (`docs/fastwam-detail.md`,
+  `docs/pi06-airbot.md`) and the benchmarks.
+- `picpp graph / calibrate / build` — the offline engine toolchain: ONNX
+  rewrites (`cast-caches`, `qdq`), activation-scale collection, and
+  recipe-driven TensorRT builds. The durable traps are encoded as tool
+  behavior: builds default to a 4 GB workspace and refuse engines whose
+  size pattern means a silent fp32 fallback; width trims refuse to cut
+  below the deployed prompt budget.
+
+```bash
+picpp graph cast-caches --onnx model.onnx --out cast.onnx --stage suffix
+picpp graph qdq --onnx cast.onnx --scales mlp_act_scales.npz --out qdq.onnx
+picpp calibrate --onnx qdq.onnx --calib calib_data.npz --out mlp_act_scales.npz
+picpp build --recipe build_recipe.json --onnx-dir ./onnx --out-dir ./engines
+```
+
 ## Getting Started
 
 Choose the setup path that matches your environment. Docker and pip/uv expose
@@ -233,6 +256,15 @@ Measure end-to-end runtime latency and save `<model_dir>/latency.json`:
 
 ```bash
 picpp latency --model fastwam --model-dir assets/fastwam_libero
+```
+
+#### picpp infer
+
+Run a single inference case (optional RTC delay / action-prefix for pi06):
+
+```bash
+picpp infer --model pi06_rtc --model-dir assets/pi06_rtc --case-dir cases/case_000 \
+    --delay 6 --action-prefix-file prefix.npy --output action.npy
 ```
 
 #### picpp eval
