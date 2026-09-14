@@ -49,7 +49,22 @@ def _root(root: Path | None) -> Path:
 
 
 def run_install(package: Path, root: Path, force: bool) -> int:
-    package_dir, manifest_path = _resolve_package(package)
+    source = package.resolve()
+    if source.is_file():
+        if not source.name.endswith((".tar.gz", ".tgz")):
+            raise ValueError(f"install expects a package directory or a .tar.gz archive, got {package}")
+        staging = root / f".staging-{source.stem.split('.')[0]}"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+        with tarfile.open(source, "r:gz") as bundle:
+            bundle.extractall(staging)
+        candidates = [entry for entry in staging.iterdir() if (entry / MANIFEST_NAME).is_file()]
+        if len(candidates) != 1:
+            raise ValueError(f"archive must contain exactly one package with a {MANIFEST_NAME}, found {len(candidates)}")
+        package_dir, manifest_path = candidates[0], candidates[0] / MANIFEST_NAME
+    else:
+        package_dir, manifest_path = _resolve_package(source)
     manifest = load(manifest_path)
     ok, problems = verify_integrity(package_dir, manifest)
     destination = root / manifest.model["display_name"]

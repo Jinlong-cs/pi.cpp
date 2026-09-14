@@ -27,6 +27,7 @@ class EvalConfig:
     model: EvalModel
     dataset: str
     model_dir: Path | None = None
+    progress: bool = False
 
 
 @dataclass(kw_only=True)
@@ -88,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
     if isinstance(command, EvalConfig):
         from pi_cpp.commands.eval import run_eval
 
-        return run_eval(model=command.model, dataset=command.dataset, model_dir=command.model_dir)
+        return run_eval(model=command.model, dataset=command.dataset, model_dir=command.model_dir, progress=command.progress)
 
     if isinstance(command, InferConfig):
         from pi_cpp.commands.infer import run_infer

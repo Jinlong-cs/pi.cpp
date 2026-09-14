@@ -975,8 +975,8 @@ def _run_pi06_rtc_eval(*, dataset: str, model_dir: Path | None, progress: bool) 
     return 0
 
 
-def run_eval(*, model: str, dataset: str, model_dir: Path | None) -> int:
-    progress = os.environ.get("PICPP_EVAL_PROGRESS") == "1"
+def run_eval(*, model: str, dataset: str, model_dir: Path | None, progress: bool = False) -> int:
+    progress = progress or os.environ.get("PICPP_EVAL_PROGRESS") == "1"
     if model == "pi05":
         return _run_pi05_eval(dataset=dataset, model_dir=model_dir, progress=progress)
     if model == "pi06_heterogeneous":
