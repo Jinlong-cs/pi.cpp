@@ -142,9 +142,16 @@ acceptance lock. Nothing model-specific in the C++ runner.
 
 ## Open questions for review
 
-- Merge `gates` into a shared defaults table (per-family) with per-package
-  overrides, or keep every gate explicit per package?
-- `adapter`: register by python module name (current) vs bundle a
-  `adapter.py` file in the package? (Bundle is safer for sealed artifacts.)
-- Should `lock` pin the engine sha256 individually (it does via the
-  package hash) or also keep a per-engine table for faster invalidation?
+Resolved 2026-09-14 (user decision):
+
+1. **Gates scope:** family defaults + per-package overrides. The defaults
+   table ships in `pi_cpp/package/gates.py` for families with recorded
+   evidence (pi06, pi05); packages of families without a default MUST
+   declare gates explicitly — fail-closed otherwise.
+2. **Adapter form:** bundled `adapter.py` in the package root (sealed,
+   self-contained); `runtime.adapter` records the registered reference
+   module the bundle was derived from.
+3. **Lock granularity:** per-engine sha256 table + one package hash
+   (sha256 over the canonical manifest-without-lock + engine hashes +
+   adapter.py hash + export manifest hash) — per-engine mismatch pinpoints
+   the broken file, the package hash guarantees whole-package consistency.
