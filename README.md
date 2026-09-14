@@ -16,8 +16,9 @@ Inspired by llama.cpp, pi.cpp brings optimized deployment of robot foundation
 models to edge devices, workstations, and embedded platforms.
 
 pi.cpp turns each policy into a fixed TensorRT engine package plus a compact
-C++ runtime path. The same workflow handles latency profiling, model-specific
-QDQ-INT8 recipes, CUDA Graph loops, and closed-loop LIBERO validation.
+C++ runtime path. An optional offline Optimization SDK now exposes ONNX
+inspection, selective QDQ, precision guards, numerical comparison, and
+target-local TensorRT evidence without adding work to the request path.
 
 ```text
 checkpoint -> ONNX contract -> TensorRT engines -> C++ runtime -> policy server
@@ -46,7 +47,7 @@ Each acceleration route moves through the same gates:
 | --- | --- | --- |
 | Baseline | ✅ Fixed ONNX contract and local TensorRT engines. | Shape, finite output, stage latency. |
 | Profile | ✅ Find hot TensorRT layers on the real device. | AGX/H200 timing, not node-count guesses. |
-| QDQ | ✅ Quantize profitable fixed-weight Linear/Gemm paths. | Full runtime improves. |
+| QDQ | ✅ Quantize profitable fixed-weight Linear/Gemm paths with `picpp-opt`. | Full runtime improves. |
 | Guard | ✅ Roll sensitive attention, VAE, norm, cast, or boundary nodes back to native precision. | Drift and smoke tests stay acceptable. |
 | Runtime | ✅ Reuse buffers/bindings and capture stable loops with CUDA Graph. | Same-input parity, then steady-state speed. |
 | QAT | ✅ Train deployable reductions such as fewer denoise steps or FFN pruning. | Faster engine plus recovered success. |
@@ -101,7 +102,7 @@ rates are closed-loop LIBERO 400 episode results.
 | Model | Runtime stages | AGX Orin infer_ms | H200 infer_ms | LIBERO 400 success |
 | --- | --- | ---: | ---: | ---: |
 | PI0.5 | prefix_embed + prefix_lm + suffix_step | 305.51 ms | 29.44 ms | 93.75% |
-| FastWAM | vae_image_encoder + video_prefill + action_step_dynamic_kv | 297.16 ms | 43.52 ms | 97.50% |
+| FastWAM | vae_image_encoder + video_prefill + context_kv_prefill + action_step_dynamic_kv | 297.16 ms | 43.52 ms | 97.50% |
 | SmolVLA | prefix_embed + prefix_lm + suffix_loop | 137.60 ms | 17.50 ms | 79.75% |
 | SemanticVLA | backbone + action_step | 222.70 ms | 21.69 ms | 67.25% |
 | Evo-1 | backbone + action_step | 248.33 ms | - | 93.00% |
@@ -145,6 +146,34 @@ attention QDQ, broad VAE QDQ, and FFN plugins have all looked attractive in
 isolation but failed to beat TensorRT native paths in full AGX runtime. The
 rule is simple: INT8 is a hypothesis, not a conclusion.
 
+## Optimization SDK
+
+The production runtime stays TensorRT-first and model-specific. `picpp-opt` is
+an optional offline tool for producing and validating its portable assets:
+
+```text
+FP ONNX -> inspect -> selective QDQ -> precision guards -> compare
+        -> target-local TensorRT build -> stage evidence -> policy validation
+```
+
+Install it independently from the default runtime dependency path:
+
+```bash
+uv pip install -e ".[optimization]"
+picpp-opt inspect --onnx model.onnx --output inspect.json
+```
+
+The first public recipe captures FastWAM's AGX Orin selective INT8 route. It
+quantizes the fixed-weight compute body while keeping `time_embedding.0`,
+`time_embedding.2`, `time_projection.1`, `action_encoder`, and `head` in FP16.
+The published asset reached `375/400 = 93.75%` on the AGX LIBERO closed-loop
+protocol. Newly generated assets do not inherit that result unless artifact
+identity matches or the full target validation ladder is rerun.
+
+See the [Optimization SDK workflow](docs/optimization-sdk.md) for QDQ,
+rollback, FP/QDQ comparison, TensorRT build, engine inspection, and stage
+benchmark commands.
+
 ## Getting Started
 
 Choose the setup path that matches your environment. Docker and pip/uv expose
@@ -161,7 +190,7 @@ then run `picpp client` from the robot or simulator side.
 For local development:
 
 ```bash
-git clone https://github.com/DiscoverRobotics/pi.cpp.git && cd pi.cpp
+git clone https://github.com/Jinlong-cs/pi.cpp.git && cd pi.cpp
 uv venv --python 3.10 .venv
 source .venv/bin/activate
 uv pip install -e ".[libero]"

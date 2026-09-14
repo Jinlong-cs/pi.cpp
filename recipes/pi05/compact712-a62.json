@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "model_spec": {
+    "schema_version": 1,
+    "name": "PI0.5 compact712",
+    "revision": "a62_75_compact712_o2_pv2_13_agx_v1 (nx01 deployed engines: prefix_embed a252efb1def7c394..., prefix_lm 6789b496d2e889de..., suffix_step b8724b758d91d595...)",
+    "stages": {
+      "prefix_embed": "pi05_libero_3cam200_int8_per_layer_v1_evalpkg_20260629/onnx/prefix_embed.onnx",
+      "prefix_lm": "d10_qat85_20260713/pvqat9p375_scaleaware_l07_alpha0p5_v1_agx_v1/model/onnx/prefix_lm.onnx",
+      "suffix_step": "deep_d10_four_axes_20260710/sfx/pv_l2_13_nofp16_20260713/suffix_step_pv_qdq.onnx"
+    },
+    "contract": {
+      "num_cameras": 3,
+      "token_length": 200,
+      "prefix_sequence_length": 968,
+      "prefix_sequence_length_compact": 712,
+      "prefix_kv_layers": 18,
+      "prefix_kv_heads": 1,
+      "prefix_kv_head_dim": 256,
+      "prefix_hidden_dim": 2048,
+      "action_horizon": 50,
+      "action_steps": 10,
+      "action_latent_dim": 32,
+      "output_shape": [50, 7],
+      "denoise_steps": 10,
+      "sequence_layout": "[cam0 256][cam1 256][pad-cam 256][prompt 200]; compaction keeps the first real_camera_tokens slots of each real camera plus the prompt, dropping the pad camera (2 * t + 200)",
+      "compact_tokens_by_tier": {"64": 328, "96": 392, "128": 456, "192": 584, "256": 712}
+    }
+  },
+  "target_fingerprint": {
+    "schema_version": 1,
+    "name": "Jetson Orin NX",
+    "architecture": "Ampere SM87",
+    "hardware": {"class": "edge", "gpu": "Jetson Orin NX", "memory_gib": 8},
+    "software": {"tensorrt": "10.3.0", "engine_portability": "engines must be rebuilt on the target"}
+  },
+  "optimization_plan": {
+    "schema_version": 1,
+    "name": "pi05-compact712-a62-int8",
+    "status": "measured",
+    "model": "PI0.5 compact712",
+    "target": "Jetson Orin NX",
+    "lineage": {
+      "root": "pi05_qdq_per_layer_20260627 (AGX build lineage; build script pi05_agx_build_compact712_a62_20260720.sh)",
+      "steps": [
+        "reconstruct-safe4: apply-delta (narrow FFN from prune9p375 keep to safe4 keep, then sparse-delta QAT npz over the canonical base)",
+        "reconstruct-a62: narrow-ffn (safe4 keep -> asym_a62_75 keep)",
+        "compact-sequence x3 (prefix_embed/prefix_lm/suffix_step, real_camera_tokens=256 -> 712)",
+        "audit-sequence (static sequence-length audit over the three compact ONNX)",
+        "rewrite-io x3 (io.json 968->712; embed 5, lm 40, suffix 37 replacements)",
+        "trt-build x3 (flags below) with --skipInference, then engine sha256/disk manifests",
+        "release: headers+rewrite tgz, engine sha256, df snapshots"
+      ]
+    },
+    "stages": {
+      "prefix_embed": {
+        "precision": "int8-qdq + fp16",
+        "source_precision": "per-layer QDQ from the int8_per_layer lineage (no fp16 keep nodes)",
+        "trt_flags": {"fp16": true, "int8": true, "builder_optimization_level": 2, "workspace_mib": 4096, "skip_inference": true},
+        "reference_qdq_counts": {"QuantizeLinear": 324, "DequantizeLinear": 486},
+        "expected_quantized_matmul": 27,
+        "io_expected_replacements": 5
+      },
+      "prefix_lm": {
+        "precision": "int8-qdq with selective activation rollback",
+        "source_precision": "pvqat9p375 scale-aware QAT lineage: int8 FFN weights (gate/up/down, intermediate 14848, per-layer keep indices) + selective activation fp16 rollback on hot layers + per-layer percentile activation scales",
+        "activation_rollback": {
+          "tool": "picpp-opt edit-qdq",
+          "note": "hot-layer activation QDQ removal (--remove-q regex) and per-layer activation scale overrides (--set-scale regex=float). The pvqat lineage pattern list was not archived; re-derive via the 8-sample drift ablation (lm-only unnorm mean_abs 0.129 dominated the full-model budget)."
+        },
+        "trt_flags": {"int8": true, "builder_optimization_level": 3, "workspace_mib": 4096, "skip_inference": true},
+        "reference_qdq_counts": {"QuantizeLinear": 72, "DequantizeLinear": 193},
+        "expected_quantized_matmul": 242,
+        "io_expected_replacements": 40,
+        "ffn": {
+          "layers": "0..16",
+          "base_keep_indices": "s1_prefixlm_ffn_prune9p375_deqscore_noqat_20260709/prune9p375_deqscore_full_keep_indices.json",
+          "safe4_keep_indices": "d10_qat85_20260713/incoming_h2001_safe4_12p5_joint1101_20260715/safe4_l13_16_at12p5_keep_v1.json",
+          "a62_keep_indices": "d10_qat85_20260713/asym_a62_75_from_safe4qat_control_agx_v1/export/asym_a62_75_keep_v1.json",
+          "sparse_delta": "d10_qat85_20260713/incoming_h2001_safe4_12p5_joint1101_20260715/safe4_12p5_joint1101_sparse_delta_v2.npz",
+          "sparse_delta_manifest": "safe4_12p5_joint1101_sparse_delta_v2.summary.json",
+          "delta_format": "flat_indices_int_delta_and_float32_replacement_v2",
+          "changed_arrays": 12,
+          "changed_values": 122708
+        }
+      },
+      "suffix_step": {
+        "precision": "int8-qdq",
+        "source_precision": "per-layer QDQ from the deep_d10 pv_l2_13 nofp16 lineage",
+        "trt_flags": {"int8": true, "builder_optimization_level": 3, "workspace_mib": 4096, "skip_inference": true},
+        "reference_qdq_counts": {"QuantizeLinear": 101, "DequantizeLinear": 268},
+        "expected_quantized_matmul": 20,
+        "expected_quantized_gemm": 21,
+        "io_expected_replacements": 37
+      }
+    }
+  },
+  "evidence": [
+    {
+      "schema_version": 1,
+      "kind": "drift-ablation",
+      "status": "measured",
+      "command": [],
+      "inputs": {"samples": 8, "reference": "fp baseline vs per-stage int8 candidates", "protocol": "real-input unnormalized action drift"},
+      "outputs": {},
+      "metrics": {
+        "embed_only_mean_abs": 0.02327609807252884,
+        "lm_only_mean_abs": 0.1294124275445938,
+        "suffix_only_mean_abs": 0.04011199250817299,
+        "full_int8_nofp16_mean_abs": 0.12117279320955276,
+        "gripper_sign_mismatch_embed": 2,
+        "gripper_sign_mismatch_lm": 10,
+        "gripper_sign_mismatch_suffix": 5
+      }
+    },
+    {
+      "schema_version": 1,
+      "kind": "artifact-identity",
+      "status": "accepted",
+      "command": ["pi05_agx_build_compact712_a62_20260720.sh"],
+      "inputs": {"build": "a62_75_compact712_o2_pv2_13_agx_v1"},
+      "outputs": {
+        "prefix_embed_engine_sha256": "a252efb1def7c394bee865fc9471e4088fb8f4f6e896b5f8eddafb771fc5ea47",
+        "prefix_lm_engine_sha256": "6789b496d2e889de0fa5f7a96a0715e97da1d205e75a2ef6fe8d7769e777069f",
+        "suffix_step_engine_sha256": "b8724b758d91d595611ab249e97daf27d1ad0be360ffe8dec6a6425303d55cf7"
+      },
+      "metrics": {}
+    },
+    {
+      "schema_version": 1,
+      "kind": "closed-loop",
+      "status": "accepted",
+      "command": ["picpp", "client"],
+      "inputs": {"dataset": "LIBERO libero_10", "protocol": "NX server/client closed loop (simulation)", "trials": 4, "tasks": 10},
+      "outputs": {},
+      "metrics": {
+        "successes": 32,
+        "episodes": 40,
+        "success_rate": 0.8,
+        "threshold": 28,
+        "policy_calls": 2976,
+        "client_roundtrip_p50_ms": 361.8,
+        "client_roundtrip_p95_ms": 367.2,
+        "server_infer_p50_ms": 358.7
+      }
+    },
+    {
+      "schema_version": 1,
+      "kind": "closed-loop",
+      "status": "measured",
+      "command": ["pi05_direct_libero_eval.py"],
+      "inputs": {"dataset": "LIBERO 400", "protocol": "AGX in-process closed loop", "lineage": "PI05_量化实验完整总结_20260806.md"},
+      "outputs": {},
+      "metrics": {
+        "successes": 353,
+        "episodes": 400,
+        "success_rate": 0.8825,
+        "suites": [98, 97, 78, 80],
+        "standalone_median_ms": 159.648663,
+        "gate40": 33,
+        "gate40_episodes": 40,
+        "smoke5": 4,
+        "smoke5_episodes": 5,
+        "recovery_note": "pre-QAT-recovery point; the recovery-first QAT to 360 never produced a survivor"
+      }
+    }
+  ]
+}
