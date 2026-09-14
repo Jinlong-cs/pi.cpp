@@ -79,7 +79,7 @@ target_sources(pi_cpp_runtime PRIVATE
   src/runtime/evo1_offline_tensorrt.cpp
   src/runtime/fastwam_offline_tensorrt.cpp
   src/runtime/groot_offline_tensorrt.cpp
-  src/runtime/pi05_offline_tensorrt.cpp
+  src/runtime/split_denoise_runner.cpp
   src/runtime/semanticvla_offline_tensorrt.cpp
   src/runtime/smolvla_offline_tensorrt.cpp
   src/runtime/starvla_offline_tensorrt.cpp
