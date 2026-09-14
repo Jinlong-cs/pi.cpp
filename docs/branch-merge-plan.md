@@ -63,6 +63,13 @@ commit is contained in heterogeneous, heterogeneous in rtc).
 > merge commit. Lesson: verify the PR's `baseRefName` (and the resulting
 > main ancestry) before merging, not after.
 
+> **Split (recorded):** after the Phase 2–5 acceptance layer landed
+> (package/verify/lock + the agent contract, PRs #7/#8/#9/#10/#11/#12),
+> the repo's identity was re-scoped to product + strategies: the
+> acceptance machinery moved out of main, and the protocol knowledge was
+> recorded in the embodied-ai skill (`03-deploy/recipes/picpp-acceptance.
+> md`). The implementation stays reachable in git history.
+
 The trap-fix history (`cudaGraphInstantiate` signature, timestep host
 pointer, debug-print cleanup) survived the rebase as individual commits on
 main — not squashed.
