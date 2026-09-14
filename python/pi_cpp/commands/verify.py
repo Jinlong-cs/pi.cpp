@@ -30,7 +30,6 @@ from pi_cpp.package.gates import gates_for
 from pi_cpp.verify.metrics import evaluate_latency, evaluate_parity, raw_max_abs, triplet
 
 SURFACE_SHAPE = (50, 16)
-NOISE_SEED = 0
 
 
 def payload_hash(value: np.ndarray) -> str:
@@ -60,12 +59,15 @@ def load_golden_raw32(golden_root: Path, case_id: str) -> np.ndarray:
 
 def load_frozen_case(golden_root: Path, case_id: str) -> dict[str, np.ndarray]:
     case_dir = golden_root / "frozen_inputs" / "run_a" / case_id
+    noise_files = list((golden_root / "frozen_inputs").glob("noise_seed_*.npy"))
+    if len(noise_files) != 1:
+        raise ValueError(f"expected exactly one noise_seed_*.npy in frozen_inputs, found {len(noise_files)}")
     paths = {
         "image": case_dir / "image_float32_nchw.npy",
         "image_mask": case_dir / "image_mask_bool.npy",
         "tokenized_prompt": case_dir / "token_ids_int64.npy",
         "tokenized_prompt_mask": case_dir / "token_mask_bool.npy",
-        "x_t": golden_root / "frozen_inputs" / f"noise_seed_{NOISE_SEED}.npy",
+        "x_t": noise_files[0],
         "state": case_dir / "normalized_state.npy",
         "embodiment_id": case_dir / "embodiment_id_int32.npy",
         "delay": case_dir / "rtc_delay_int32.npy",
