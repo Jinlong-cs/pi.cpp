@@ -46,8 +46,9 @@ def _run_pi06_heterogeneous_infer(
     embodiment_id: int | None,
     noise_file: Path | None,
     output: Path | None,
+    resident: str,
 ) -> int:
-    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir)
+    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir, resident=resident)
     if case_dir is not None:
         tensors = _load_case_tensors(Path(case_dir))
         noise_path = noise_file if noise_file is not None else Path(case_dir) / "noise_seed.npy"
@@ -118,8 +119,9 @@ def _run_pi06_rtc_infer(
     output: Path | None,
     delay: int | None,
     action_prefix_file: Path | None,
+    resident: str,
 ) -> int:
-    runner = picpp.build_pi06_rtc_runner(model_dir=model_dir)
+    runner = picpp.build_pi06_rtc_runner(model_dir=model_dir, resident=resident)
     if case_dir is not None:
         tensors = {}
         for name, filename in PI06_RTC_CASE_TENSORS:
@@ -212,6 +214,7 @@ def run_infer(
     output: Path | None,
     delay: int | None,
     action_prefix_file: Path | None,
+    resident: str,
 ) -> int:
     if model == "pi06_heterogeneous":
         return _run_pi06_heterogeneous_infer(
@@ -223,6 +226,7 @@ def run_infer(
             embodiment_id=embodiment_id,
             noise_file=noise_file,
             output=output,
+            resident=resident,
         )
     if model == "pi06_rtc":
         return _run_pi06_rtc_infer(
@@ -236,5 +240,6 @@ def run_infer(
             output=output,
             delay=delay,
             action_prefix_file=action_prefix_file,
+            resident=resident,
         )
     raise ValueError(f"unsupported infer model: {model}")

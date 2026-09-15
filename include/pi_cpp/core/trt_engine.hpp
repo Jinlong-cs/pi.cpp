@@ -31,6 +31,9 @@ class TrtEngine {
   [[nodiscard]] bool loaded() const { return loaded_; }
 
   Status Load();
+  // Release the TRT objects (context, engine, runtime, parsed specs) but
+  // keep the engine path so Load() can deserialize the same plan again.
+  void Unload();
   Status Enqueue(std::span<const TensorView> inputs, std::span<TensorView> outputs, void* cuda_stream = nullptr);
 
  private:

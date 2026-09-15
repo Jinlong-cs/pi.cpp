@@ -48,9 +48,19 @@ struct SplitDenoiseResult {
   std::vector<float> action;
 };
 
+// Engine residency policy. kAll keeps all three stages loaded at once (the
+// default). kSequential keeps a single engine resident at a time and reloads
+// the prefix stages around every run, trading reload time for a lower peak
+// device footprint on memory-tight boards such as the 8 GB Orin NX.
+enum class SplitDenoiseResidency {
+  kAll,
+  kSequential,
+};
+
 class SplitDenoiseRunner {
  public:
-  explicit SplitDenoiseRunner(std::filesystem::path engine_dir);
+  explicit SplitDenoiseRunner(std::filesystem::path engine_dir,
+                              SplitDenoiseResidency residency = SplitDenoiseResidency::kAll);
   ~SplitDenoiseRunner();
 
   SplitDenoiseRunner(SplitDenoiseRunner&&) = delete;
@@ -63,9 +73,11 @@ class SplitDenoiseRunner {
 
   [[nodiscard]] std::vector<TensorSpec> input_specs() const;
   [[nodiscard]] double load_ms() const;
+  [[nodiscard]] SplitDenoiseResidency residency() const { return residency_; }
 
  private:
   std::filesystem::path engine_dir_;
+  SplitDenoiseResidency residency_;
   double load_ms_ = 0.0;
   TrtEngine prefix_embed_;
   TrtEngine prefix_lm_;

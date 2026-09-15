@@ -48,6 +48,7 @@ class InferConfig:
     output: Path | None = None
     delay: int | None = None
     action_prefix_file: Path | None = None
+    resident: Literal["all", "sequential"] = "all"
 
 
 @dataclass(kw_only=True)
@@ -102,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
             output=command.output,
             delay=command.delay,
             action_prefix_file=command.action_prefix_file,
+            resident=command.resident,
         )
 
     if isinstance(command, LatencyConfig):

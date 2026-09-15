@@ -25,14 +25,16 @@ DEFAULT_PI06_RTC_MODEL_DIR = Path("assets/pi06_rtc")
 class Pi06RtcRunnerWrapper(Pi06HeterogeneousRunnerWrapper):
     """The RTC variant, selected by the manifest; fails closed on non-RTC manifests."""
 
-    def __init__(self, model_dir: str | Path = DEFAULT_PI06_RTC_MODEL_DIR) -> None:
-        super().__init__(model_dir=model_dir)
+    def __init__(self, model_dir: str | Path = DEFAULT_PI06_RTC_MODEL_DIR, resident: str = "all") -> None:
+        super().__init__(model_dir=model_dir, resident=resident)
         if not self.rtc_enabled:
             raise ValueError("pi06_rtc requires a manifest with rtc.training_time_rtc=True")
 
 
-def build_pi06_rtc_runner(*, model_dir: str | Path | None = None) -> Pi06RtcRunnerWrapper:
-    return Pi06RtcRunnerWrapper(model_dir=DEFAULT_PI06_RTC_MODEL_DIR if model_dir is None else Path(model_dir))
+def build_pi06_rtc_runner(*, model_dir: str | Path | None = None, resident: str = "all") -> Pi06RtcRunnerWrapper:
+    return Pi06RtcRunnerWrapper(
+        model_dir=DEFAULT_PI06_RTC_MODEL_DIR if model_dir is None else Path(model_dir), resident=resident
+    )
 
 
 __all__ = [
