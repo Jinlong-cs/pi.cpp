@@ -33,6 +33,7 @@ class LatencyConfig:
     model: LatencyModel
     model_dir: Path | None = None
     prompt: str = "Pick the akita black bowl from table center and place it on the plate"
+    resident: Literal["all", "sequential"] = "all"
 
 
 @dataclass(kw_only=True)
@@ -107,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if isinstance(command, LatencyConfig):
-        return run_latency(model=command.model, model_dir=command.model_dir, prompt=command.prompt)
+        return run_latency(model=command.model, model_dir=command.model_dir, prompt=command.prompt, resident=command.resident)
 
     if isinstance(command, (GraphConfig, CalibrateConfig, BuildConfig)):
         from pi_cpp.commands.toolchain import run_toolchain
