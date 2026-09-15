@@ -234,7 +234,7 @@ Status SplitDenoiseRunner::Load() {
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputTokenizedPromptMask,
                                           tokenized_prompt_mask_));
   if (sequential) {
-    prefix_embed_ = TrtEngine{};
+    prefix_embed_.Unload();
   }
 
   // Stage: prefix_lm.
@@ -260,7 +260,7 @@ Status SplitDenoiseRunner::Load() {
   RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixAttentionMask4d,
                                           *prefix_attention_mask_4d->second));
   if (sequential) {
-    prefix_lm_ = TrtEngine{};
+    prefix_lm_.Unload();
   }
 
   // Stage: suffix_step — stays resident in both modes (it runs the per-step loop).
@@ -385,13 +385,13 @@ Status SplitDenoiseRunner::RunOnce(const SplitDenoiseRequest& request, SplitDeno
     RETURN_IF_ERROR(timers_.prefix_embed.Start(stream_.get()));
     RETURN_IF_ERROR(runtime::RunStage(prefix_embed_, &prefix_embed_plan_, &prefix_embed_workspace_, stream_.get()));
     RETURN_IF_ERROR(timers_.prefix_embed.Stop(stream_.get()));
-    prefix_embed_ = TrtEngine{};
+    prefix_embed_.Unload();
 
     RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
     RETURN_IF_ERROR(timers_.prefix_lm.Start(stream_.get()));
     RETURN_IF_ERROR(runtime::RunStage(prefix_lm_, &prefix_lm_plan_, &prefix_lm_workspace_, stream_.get()));
     RETURN_IF_ERROR(timers_.prefix_lm.Stop(stream_.get()));
-    prefix_lm_ = TrtEngine{};
+    prefix_lm_.Unload();
 
     status = RunSuffixLoopStage(suffix_step_, &timestep_, &dt_, &suffix_step_plan_, &suffix_step_workspace_,
                                 &x_t_buffers_, &timers_, suffix_x_t_input_index_, suffix_x_t_next_output_index_,

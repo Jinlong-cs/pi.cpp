@@ -34,5 +34,16 @@ TrtEngine& TrtEngine::operator=(TrtEngine&& other) noexcept {
   return *this;
 }
 
+void TrtEngine::Unload() {
+  context_.reset();
+  engine_.reset();
+  runtime_.reset();
+  inputs_.clear();
+  outputs_.clear();
+  bound_inputs_.clear();
+  bound_outputs_.clear();
+  loaded_ = false;
+}
+
 }  // namespace pi_cpp
 
