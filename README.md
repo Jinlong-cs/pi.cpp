@@ -127,6 +127,20 @@ iterations.
 | PI0.5 | Profile-guided QDQ-INT8 on fixed-weight Linear/Gemm plus suffix broadcast-KV. | `305.51 -> 125.99 ms` | Output `[10,7]`, finite. |
 | FastWAM | Selective QDQ-INT8, FP16 precision guard, CUDA Graph action loop, and QAT graph reduction. | `297.16 -> 161.88 ms` | LIBERO `379/400 = 94.75%`; [details](docs/fastwam-detail.md). |
 
+### Orin NX Results
+
+Platform: NVIDIA Jetson Orin NX 8 GB (nx01), JetPack R36.4.4, TensorRT 10.3.0,
+7.4 GiB unified memory. This board is memory-tight: pi06's prefix_lm engine
+alone is 3.75 GB on disk, so `picpp infer --resident sequential` keeps one
+engine resident at a time and reloads the prefix stages around each run (the
+plan file is mmap'd so its bytes stay evictable under memory pressure).
+
+| Model | Runtime stages | NX infer_ms | NX memory footprint | Validation |
+| --- | --- | ---: | ---: | ---: |
+| PI0.5 | prefix_embed + prefix_lm + suffix_step | `352.2 ms` per step | 3.3 GB engines; 1.7 GiB RSS co-resident | closed-loop `32/40` (LIBERO-10); roundtrip p50 `361.8 ms` |
+| FastWAM | vae_image_encoder + video_prefill + context_kv_prefill + action_step_dynamic_kv | `369 ms` per step | 6.3 GB engines; co-resident leaves ~60 MiB | no NX closed-loop yet |
+| PI0.6 | prefix_embed + prefix_lm + suffix_step, sequential residency | `695.4 ms` per step (`138.5 + 339.8 + 217.1`); `~8.2 s` per run incl. prefix reloads | 3.75 GB max engine; 2.6 GiB peak RSS; 1.7 GiB MemAvailable floor | parity bit-identical to the AGX gate (`raw_max_abs 0.0`) |
+
 ### Profile-Guided QDQ-INT8
 
 pi.cpp does not treat INT8 as a global switch. The deployable recipe is:
