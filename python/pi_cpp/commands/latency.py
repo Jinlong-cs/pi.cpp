@@ -70,10 +70,10 @@ def _run_pi06_airbot_latency(*, model_dir: Path | None, prompt: str) -> dict:
     state = np.zeros(runner.state_dim, dtype=np.float32)
 
 
-def _run_pi06_heterogeneous_latency(*, model_dir: Path | None, prompt: str) -> dict:
+def _run_pi06_heterogeneous_latency(*, model_dir: Path | None, prompt: str, resident: str = "all") -> dict:
     show_progress = os.environ.get("PICPP_LATENCY_PROGRESS") == "1"
     rng = np.random.default_rng(SEED)
-    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir)
+    runner = picpp.build_pi06_heterogeneous_runner(model_dir=model_dir, resident=resident)
     height, width = runner.image_size
     images = [rng.integers(0, 256, (height, width, 3), dtype=np.uint8) for _ in range(runner.num_cameras)]
     state = np.zeros(runner.state_dim, dtype=np.float32)
@@ -113,10 +113,10 @@ def _run_pi06_heterogeneous_latency(*, model_dir: Path | None, prompt: str) -> d
     return metadata
 
 
-def _run_pi06_rtc_latency(*, model_dir: Path | None, prompt: str) -> dict:
+def _run_pi06_rtc_latency(*, model_dir: Path | None, prompt: str, resident: str = "all") -> dict:
     show_progress = os.environ.get("PICPP_LATENCY_PROGRESS") == "1"
     rng = np.random.default_rng(SEED)
-    runner = picpp.build_pi06_rtc_runner(model_dir=model_dir)
+    runner = picpp.build_pi06_rtc_runner(model_dir=model_dir, resident=resident)
     height, width = runner.image_size
     images = [rng.integers(0, 256, (height, width, 3), dtype=np.uint8) for _ in range(runner.num_cameras)]
     state = np.zeros(runner.state_dim, dtype=np.float32)
@@ -453,15 +453,15 @@ def _run_starvla_latency(*, model_dir: Path | None) -> dict:
     return metadata
 
 
-def run_latency(*, model: str, model_dir: Path | None, prompt: str) -> int:
+def run_latency(*, model: str, model_dir: Path | None, prompt: str, resident: str = "all") -> int:
     if model == "pi05":
         metadata = _run_pi05_latency(model_dir=model_dir, prompt=prompt)
     elif model == "pi06_airbot":
         metadata = _run_pi06_airbot_latency(model_dir=model_dir, prompt=prompt)
     elif model == "pi06_heterogeneous":
-        metadata = _run_pi06_heterogeneous_latency(model_dir=model_dir, prompt=prompt)
+        metadata = _run_pi06_heterogeneous_latency(model_dir=model_dir, prompt=prompt, resident=resident)
     elif model == "pi06_rtc":
-        metadata = _run_pi06_rtc_latency(model_dir=model_dir, prompt=prompt)
+        metadata = _run_pi06_rtc_latency(model_dir=model_dir, prompt=prompt, resident=resident)
     elif model == "fastwam":
         metadata = _run_fastwam_latency(model_dir=model_dir, prompt=prompt)
     elif model == "semanticvla":
