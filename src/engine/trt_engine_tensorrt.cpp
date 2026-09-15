@@ -1,24 +1,16 @@
 #include "pi_cpp/core/trt_engine.hpp"
 
 #include <NvInfer.h>
-#include <fstream>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <string>
 #include <vector>
 
 namespace pi_cpp {
 namespace {
-
-Status ReadBinary(const std::filesystem::path& path, std::vector<char>* bytes) {
-  std::ifstream stream(path, std::ios::binary);
-  if (!stream) return Status::NotFound("TensorRT engine not found: " + path.string());
-  stream.seekg(0, std::ios::end);
-  const auto size = stream.tellg();
-  stream.seekg(0, std::ios::beg);
-  bytes->resize(static_cast<std::size_t>(size));
-  if (size > 0) stream.read(bytes->data(), size);
-  if (!stream) return Status::RuntimeError("failed to read TensorRT engine: " + path.string());
-  return Status::Ok();
-}
 
 DType ConvertDataType(nvinfer1::DataType dtype) {
   switch (dtype) {
@@ -57,14 +49,29 @@ void TrtEngine::NvLogger::log(Severity severity, char const* message) noexcept {
 Status TrtEngine::Load() {
   if (path_.empty()) return Status::InvalidArgument("TensorRT engine path is empty");
 
-  std::vector<char> bytes;
-  RETURN_IF_ERROR(ReadBinary(path_, &bytes));
-
   logger_ = std::make_unique<NvLogger>();
   runtime_.reset(nvinfer1::createInferRuntime(*logger_));
   if (!runtime_) return Status::RuntimeError("failed to create TensorRT runtime");
 
-  engine_.reset(runtime_->deserializeCudaEngine(bytes.data(), bytes.size()));
+  // mmap the plan file so its bytes stay file-backed (evictable) instead of
+  // holding an anonymous copy alongside the deserialized engine; the 8 GB
+  // Orin NX otherwise OOM-kills the sequential residency load.
+  const int fd = ::open(path_.c_str(), O_RDONLY);
+  if (fd < 0) return Status::NotFound("TensorRT engine not found: " + path_.string());
+  struct stat file_stat {};
+  const bool stat_ok = ::fstat(fd, &file_stat) == 0 && file_stat.st_size > 0;
+  if (!stat_ok) {
+    ::close(fd);
+    return Status::RuntimeError("failed to stat TensorRT engine: " + path_.string());
+  }
+  void* mapped = ::mmap(nullptr, static_cast<std::size_t>(file_stat.st_size), PROT_READ, MAP_PRIVATE, fd, 0);
+  ::close(fd);
+  if (mapped == MAP_FAILED) return Status::RuntimeError("failed to mmap TensorRT engine: " + path_.string());
+  const auto* plan_bytes = static_cast<const char*>(mapped);
+  const auto plan_size = static_cast<std::size_t>(file_stat.st_size);
+
+  engine_.reset(runtime_->deserializeCudaEngine(plan_bytes, plan_size));
+  ::munmap(mapped, plan_size);
   if (!engine_) {
     const auto message = logger_->last_message().empty() ? "" : ": " + logger_->last_message();
     return Status::RuntimeError("failed to deserialize TensorRT engine: " + path_.string() + message);
