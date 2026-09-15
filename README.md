@@ -130,16 +130,19 @@ iterations.
 ### Orin NX Results
 
 Platform: NVIDIA Jetson Orin NX 8 GB (nx01), JetPack R36.4.4, TensorRT 10.3.0,
-7.4 GiB unified memory. This board is memory-tight: pi06's prefix_lm engine
-alone is 3.75 GB on disk, so `picpp infer --resident sequential` keeps one
-engine resident at a time and reloads the prefix stages around each run (the
-plan file is mmap'd so its bytes stay evictable under memory pressure).
+7.4 GiB unified memory. Residency dominates these numbers: pi06's three engines
+total 6.51 GB, so `picpp infer --resident sequential` keeps one engine resident
+at a time and reloads the prefix stages around each run (the plan file is mmap'd
+so its bytes stay evictable). Per-step numbers from different residency modes are
+not comparable — measured with the same runner on nx01, pi0.5 costs `342 ms`
+co-resident and `513 ms` sequential (+50%), and the same-mode pi06/pi0.5 ratio
+(`695 / 513 = 1.36x`) matches the AGX ratio (`285 / 199 = 1.43x`).
 
-| Model | Runtime stages | NX infer_ms | NX memory footprint | Validation |
-| --- | --- | ---: | ---: | ---: |
-| PI0.5 | prefix_embed + prefix_lm + suffix_step | `352.2 ms` per step | 3.3 GB engines; 1.7 GiB RSS co-resident | closed-loop `32/40` (LIBERO-10); roundtrip p50 `361.8 ms` |
-| FastWAM | vae_image_encoder + video_prefill + context_kv_prefill + action_step_dynamic_kv | `369 ms` per step | 6.3 GB engines; co-resident leaves ~60 MiB | no NX closed-loop yet |
-| PI0.6 | prefix_embed + prefix_lm + suffix_step, sequential residency | `695.4 ms` per step (`138.5 + 339.8 + 217.1`); `~8.2 s` per run incl. prefix reloads | 3.75 GB max engine; 2.6 GiB peak RSS; 1.7 GiB MemAvailable floor | parity bit-identical to the AGX gate (`raw_max_abs 0.0`) |
+| Model | Engines (precision) | NX co-resident step | NX sequential step | NX memory footprint | Validation |
+| --- | --- | ---: | ---: | ---: | ---: |
+| PI0.5 | 3.42 GB (INT8) | `352.2 ms` | `513 ms` | 1.7 GiB RSS co-resident | closed-loop `32/40` (LIBERO-10); roundtrip p50 `361.8 ms` |
+| FastWAM | 6.3 GB (fp16 + QDQ-INT8 nodes) | `369 ms` (4-stage sum) | not run | co-resident leaves ~60 MiB | no NX closed-loop yet |
+| PI0.6 | 6.51 GB (bf16/fp32 mixed) | not possible, engines exceed the board | `695.4 ms` (`138.5 + 339.8 + 217.1`); `~8.2 s` per run incl. prefix reloads | 2.6 GiB peak RSS; 1.7 GiB MemAvailable floor | parity bit-identical to the AGX gate (`raw_max_abs 0.0`) |
 
 ### Profile-Guided QDQ-INT8
 
