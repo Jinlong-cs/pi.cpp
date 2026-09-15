@@ -131,18 +131,27 @@ iterations.
 
 Platform: NVIDIA Jetson Orin NX 8 GB (nx01), JetPack R36.4.4, TensorRT 10.3.0,
 7.4 GiB unified memory. Residency dominates these numbers: pi06's three engines
-total 6.51 GB, so `picpp infer --resident sequential` keeps one engine resident
-at a time and reloads the prefix stages around each run (the plan file is mmap'd
-so its bytes stay evictable). Per-step numbers from different residency modes are
-not comparable — measured with the same runner on nx01, pi0.5 costs `342 ms`
-co-resident and `513 ms` sequential (+50%), and the same-mode pi06/pi0.5 ratio
-(`695 / 513 = 1.36x`) matches the AGX ratio (`285 / 199 = 1.43x`).
+total 6.51 GB, so `picpp infer --resident sequential` keeps one engine resident at
+a time and reloads the prefix stages around each run. Both modes load once the
+plan file is mmap'd so its bytes stay evictable, but they trade latency for
+memory headroom. Per-step numbers from different residency modes are not
+comparable — measured with the same runner on nx01, pi0.5 costs `342 ms`
+co-resident and `513 ms` sequential (+50%), pi06 `533.6` against `703.5 ms`
+(+32%).
 
 | Model | Engines (precision) | NX co-resident step | NX sequential step | NX memory footprint | Validation |
 | --- | --- | ---: | ---: | ---: | ---: |
 | PI0.5 | 3.42 GB (INT8) | `352.2 ms` | `513 ms` | 1.7 GiB RSS co-resident | closed-loop `32/40` (LIBERO-10); roundtrip p50 `361.8 ms` |
 | FastWAM | 6.3 GB (fp16 + QDQ-INT8 nodes) | `369 ms` (4-stage sum) | not run | co-resident leaves ~60 MiB | no NX closed-loop yet |
-| PI0.6 | 6.51 GB (bf16/fp32 mixed) | not possible, engines exceed the board | `695.4 ms` (`138.5 + 339.8 + 217.1`); `~8.2 s` per run incl. prefix reloads | 2.6 GiB peak RSS; 1.7 GiB MemAvailable floor | parity bit-identical to the AGX gate (`raw_max_abs 0.0`) |
+| PI0.6 | 6.51 GB (bf16/fp32 mixed) | `533.6 ms` (`83.4 + 275.1 + 176.5`) | `703.5 ms` (`140.1 + 337.6 + 222.3`), `8.5 s` per run incl. prefix reloads | 5642 MiB device; co-resident leaves 55 MiB MemAvailable, sequential 598 MiB | parity bit-identical to the AGX gate (`raw_max_abs 0.0`), all 36 cases and all 5 gates |
+
+PI0.6's two NX modes are both measured (`picpp verify latency`, 10 warmup + 100
+runs): co-residency became possible once the plan file is mmap'd instead of
+copied into the heap, but it leaves ~55 MiB of `MemAvailable`, so it is
+inference-only; the sequential mode buys back ~600 MiB at 1.32x the per-step
+latency. On the AGX the same chain is `269.5 ms` co-resident / `270.1 ms`
+sequential, i.e. the boards differ by `1.98x` like-for-like — the NX has half
+the DRAM bandwidth.
 
 ### Profile-Guided QDQ-INT8
 
