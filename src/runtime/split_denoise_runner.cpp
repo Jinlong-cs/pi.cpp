@@ -101,6 +101,47 @@ Status CopyNormalizedAction(const DeviceTensor& x_t, cudaStream_t stream, std::v
   return Status::Ok();
 }
 
+Status RunSuffixLoopStage(TrtEngine& suffix_step,
+                          DeviceTensor* timestep,
+                          DeviceTensor* dt,
+                          StagePlan* suffix_step_plan,
+                          StageWorkspace* suffix_step_workspace,
+                          std::array<DeviceTensor, 2>* x_t_buffers,
+                          SplitDenoiseStageTimers* timers,
+                          std::size_t suffix_x_t_input_index,
+                          std::size_t suffix_x_t_next_output_index,
+                          cudaStream_t stream,
+                          cudaGraphExec_t suffix_graph_exec,
+                          SplitDenoiseResult* result) {
+  RETURN_IF_ERROR(runtime::SetFloat32Scalar(*dt, pi05::kDefaultDt, stream));
+
+  DeviceTensor* current_x_t = &(*x_t_buffers)[0];
+  DeviceTensor* next_x_t = &(*x_t_buffers)[1];
+
+  RETURN_IF_ERROR(timers->suffix_loop.Start(stream));
+  if (suffix_graph_exec != nullptr) {
+    // Graph replay: the captured graph writes the final x_t into
+    // x_t_buffers[0] (10 steps = an even number of ping-pong swaps), which
+    // is where current_x_t already points.
+    RETURN_IF_ERROR(runtime::CheckCuda(cudaGraphLaunch(suffix_graph_exec, stream), "suffix CUDA-graph launch failed"));
+  } else {
+    for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
+      RETURN_IF_ERROR(runtime::SetFloat32Scalar(*timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
+
+      suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
+      suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
+
+      RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
+      std::swap(current_x_t, next_x_t);
+    }
+  }
+  RETURN_IF_ERROR(timers->suffix_loop.Stop(stream));
+
+  RETURN_IF_ERROR(CopyNormalizedAction(*current_x_t, stream, &result->action));
+  RETURN_IF_ERROR(timers->suffix_loop.ElapsedMs(&result->suffix_loop_ms));
+  return Status::Ok();
+}
+
 Status RunSplitDenoiseStages(TrtEngine& prefix_embed,
                      TrtEngine& prefix_lm,
                      TrtEngine& suffix_step,
@@ -127,34 +168,11 @@ Status RunSplitDenoiseStages(TrtEngine& prefix_embed,
   RETURN_IF_ERROR(runtime::RunStage(prefix_lm, prefix_lm_plan, prefix_lm_workspace, stream));
   RETURN_IF_ERROR(timers->prefix_lm.Stop(stream));
 
-  RETURN_IF_ERROR(runtime::SetFloat32Scalar(dt, pi05::kDefaultDt, stream));
-
-  DeviceTensor* current_x_t = &(*x_t_buffers)[0];
-  DeviceTensor* next_x_t = &(*x_t_buffers)[1];
-
-  RETURN_IF_ERROR(timers->suffix_loop.Start(stream));
-  if (suffix_graph_exec != nullptr) {
-    // Graph replay: the captured graph writes the final x_t into
-    // x_t_buffers[0] (10 steps = an even number of ping-pong swaps), which
-    // is where current_x_t already points.
-    RETURN_IF_ERROR(runtime::CheckCuda(cudaGraphLaunch(suffix_graph_exec, stream), "suffix CUDA-graph launch failed"));
-  } else {
-    for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-      RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
-
-      suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
-      suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
-
-      RETURN_IF_ERROR(runtime::RunStage(suffix_step, suffix_step_plan, suffix_step_workspace, stream));
-      std::swap(current_x_t, next_x_t);
-    }
-  }
-  RETURN_IF_ERROR(timers->suffix_loop.Stop(stream));
-
-  RETURN_IF_ERROR(CopyNormalizedAction(*current_x_t, stream, &result->action));
+  RETURN_IF_ERROR(RunSuffixLoopStage(suffix_step, timestep, dt, suffix_step_plan, suffix_step_workspace, x_t_buffers,
+                                     timers, suffix_x_t_input_index, suffix_x_t_next_output_index, stream,
+                                     suffix_graph_exec, result));
   RETURN_IF_ERROR(timers->prefix_embed.ElapsedMs(&result->prefix_embed_ms));
   RETURN_IF_ERROR(timers->prefix_lm.ElapsedMs(&result->prefix_lm_ms));
-  RETURN_IF_ERROR(timers->suffix_loop.ElapsedMs(&result->suffix_loop_ms));
   return Status::Ok();
 }
 
@@ -166,8 +184,9 @@ Status SplitDenoiseStageTimers::Init() {
   return suffix_loop.Init(std::string(pi05::kSuffixLoopStage));
 }
 
-SplitDenoiseRunner::SplitDenoiseRunner(std::filesystem::path engine_dir)
+SplitDenoiseRunner::SplitDenoiseRunner(std::filesystem::path engine_dir, SplitDenoiseResidency residency)
     : engine_dir_(std::move(engine_dir)),
+      residency_(residency),
       prefix_embed_(engine_dir_ / std::string(pi05::kPrefixEmbedEngine)),
       prefix_lm_(engine_dir_ / std::string(pi05::kPrefixLmEngine)),
       suffix_step_(engine_dir_ / std::string(pi05::kSuffixStepEngine)) {}
@@ -186,32 +205,73 @@ Status SplitDenoiseRunner::Load() {
   for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
     timestep_values_[step] = 1.0F + static_cast<float>(step) * pi05::kDefaultDt;
   }
-  RETURN_IF_ERROR(runtime::LoadEngine(&prefix_embed_));
-  RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
-  RETURN_IF_ERROR(runtime::LoadEngine(&suffix_step_));
-
-  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(prefix_embed_, &prefix_embed_workspace_));
-  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(prefix_lm_, &prefix_lm_workspace_));
-  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(suffix_step_, &suffix_step_workspace_));
   RETURN_IF_ERROR(timers_.Init());
   RETURN_IF_ERROR(stream_.Init());
+  const bool sequential = residency_ == SplitDenoiseResidency::kSequential;
 
+  // Stage: prefix_embed. The workspace and plan outlive the engine in
+  // sequential mode; its outputs feed the prefix_lm stage.
+  RETURN_IF_ERROR(runtime::LoadEngine(&prefix_embed_));
+  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(prefix_embed_, &prefix_embed_workspace_));
   const auto* image_spec = FindTensorSpec(prefix_embed_.inputs(), pi05::kPrefixEmbedInputImage);
   const auto* image_mask_spec = FindTensorSpec(prefix_embed_.inputs(), pi05::kPrefixEmbedInputImageMask);
   const auto* tokenized_prompt_spec = FindTensorSpec(prefix_embed_.inputs(), pi05::kPrefixEmbedInputTokenizedPrompt);
   const auto* tokenized_prompt_mask_spec =
       FindTensorSpec(prefix_embed_.inputs(), pi05::kPrefixEmbedInputTokenizedPromptMask);
-  const auto* x_t_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputXT);
-  const auto* timestep_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputTimestep);
-  const auto* dt_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputDt);
   if (image_spec == nullptr || image_mask_spec == nullptr || tokenized_prompt_spec == nullptr ||
-      tokenized_prompt_mask_spec == nullptr || x_t_spec == nullptr || timestep_spec == nullptr || dt_spec == nullptr) {
-    return Status::InvalidArgument("split-denoise engine tensor contract is missing a required input tensor");
+      tokenized_prompt_mask_spec == nullptr) {
+    return Status::InvalidArgument("split-denoise engine tensor contract is missing a required prefix_embed input tensor");
   }
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*image_spec, &image_));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*image_mask_spec, &image_mask_));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*tokenized_prompt_spec, &tokenized_prompt_));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*tokenized_prompt_mask_spec, &tokenized_prompt_mask_));
+  RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_embed_, &prefix_embed_plan_));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImage, image_));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImageMask, image_mask_));
+  RETURN_IF_ERROR(
+      runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputTokenizedPrompt, tokenized_prompt_));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputTokenizedPromptMask,
+                                          tokenized_prompt_mask_));
+  if (sequential) {
+    prefix_embed_ = TrtEngine{};
+  }
+
+  // Stage: prefix_lm.
+  RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
+  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(prefix_lm_, &prefix_lm_workspace_));
+  auto prefix_embs = prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixEmbs));
+  auto prefix_position_ids =
+      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixPositionIds));
+  auto prefix_attention_mask_4d =
+      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixAttentionMask4d));
+  auto prefix_pad_masks =
+      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixPadMasks));
+  if (prefix_embs == prefix_embed_workspace_.named_outputs.end() ||
+      prefix_position_ids == prefix_embed_workspace_.named_outputs.end() ||
+      prefix_attention_mask_4d == prefix_embed_workspace_.named_outputs.end() ||
+      prefix_pad_masks == prefix_embed_workspace_.named_outputs.end()) {
+    return Status::InvalidArgument("prefix_embed is missing a required split-denoise output tensor");
+  }
+  RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_lm_, &prefix_lm_plan_));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixEmbs, *prefix_embs->second));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixPositionIds,
+                                          *prefix_position_ids->second));
+  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixAttentionMask4d,
+                                          *prefix_attention_mask_4d->second));
+  if (sequential) {
+    prefix_lm_ = TrtEngine{};
+  }
+
+  // Stage: suffix_step — stays resident in both modes (it runs the per-step loop).
+  RETURN_IF_ERROR(runtime::LoadEngine(&suffix_step_));
+  RETURN_IF_ERROR(runtime::PrepareStageWorkspace(suffix_step_, &suffix_step_workspace_));
+  const auto* x_t_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputXT);
+  const auto* timestep_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputTimestep);
+  const auto* dt_spec = FindTensorSpec(suffix_step_.inputs(), pi05::kSuffixStepInputDt);
+  if (x_t_spec == nullptr || timestep_spec == nullptr || dt_spec == nullptr) {
+    return Status::InvalidArgument("split-denoise engine tensor contract is missing a required suffix input tensor");
+  }
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*x_t_spec, &x_t_buffers_[0]));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*x_t_spec, &x_t_buffers_[1]));
   RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*timestep_spec, &timestep_));
@@ -238,35 +298,6 @@ Status SplitDenoiseRunner::Load() {
     RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*delay_spec, &delay_));
     RETURN_IF_ERROR(runtime::AllocateDeviceTensor(*action_prefix_spec, &action_prefix_));
   }
-
-  RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_embed_, &prefix_embed_plan_));
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImage, image_));
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputImageMask, image_mask_));
-  RETURN_IF_ERROR(
-      runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputTokenizedPrompt, tokenized_prompt_));
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_embed_plan_, pi05::kPrefixEmbedInputTokenizedPromptMask,
-                                          tokenized_prompt_mask_));
-
-  RETURN_IF_ERROR(runtime::PrepareStagePlan(prefix_lm_, &prefix_lm_plan_));
-
-  auto prefix_embs = prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixEmbs));
-  auto prefix_position_ids =
-      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixPositionIds));
-  auto prefix_attention_mask_4d =
-      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixAttentionMask4d));
-  auto prefix_pad_masks =
-      prefix_embed_workspace_.named_outputs.find(std::string(pi05::kPrefixEmbedOutputPrefixPadMasks));
-  if (prefix_embs == prefix_embed_workspace_.named_outputs.end() ||
-      prefix_position_ids == prefix_embed_workspace_.named_outputs.end() ||
-      prefix_attention_mask_4d == prefix_embed_workspace_.named_outputs.end() ||
-      prefix_pad_masks == prefix_embed_workspace_.named_outputs.end()) {
-    return Status::InvalidArgument("prefix_embed is missing a required split-denoise output tensor");
-  }
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixEmbs, *prefix_embs->second));
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixPositionIds,
-                                          *prefix_position_ids->second));
-  RETURN_IF_ERROR(runtime::BindStageInput(&prefix_lm_plan_, pi05::kPrefixLmInputPrefixAttentionMask4d,
-                                          *prefix_attention_mask_4d->second));
 
   RETURN_IF_ERROR(runtime::PrepareStagePlan(suffix_step_, &suffix_step_plan_));
   RETURN_IF_ERROR(runtime::BindStageInput(&suffix_step_plan_, pi05::kSuffixStepInputPrefixPadMasks, *prefix_pad_masks->second));
@@ -346,10 +377,33 @@ Status SplitDenoiseRunner::RunOnce(const SplitDenoiseRequest& request, SplitDeno
   }
 
   auto start = std::chrono::steady_clock::now();
-  Status status = RunSplitDenoiseStages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
-                                &prefix_embed_plan_, &prefix_lm_plan_, &suffix_step_plan_, &prefix_embed_workspace_,
-                                &prefix_lm_workspace_, &suffix_step_workspace_, &timers_, suffix_x_t_input_index_,
-                                suffix_x_t_next_output_index_, stream_.get(), suffix_graph_exec_, result);
+  Status status;
+  if (residency_ == SplitDenoiseResidency::kSequential) {
+    // Sequential residency: reload each prefix stage around its single run;
+    // the suffix engine stays resident for the per-step loop.
+    RETURN_IF_ERROR(runtime::LoadEngine(&prefix_embed_));
+    RETURN_IF_ERROR(timers_.prefix_embed.Start(stream_.get()));
+    RETURN_IF_ERROR(runtime::RunStage(prefix_embed_, &prefix_embed_plan_, &prefix_embed_workspace_, stream_.get()));
+    RETURN_IF_ERROR(timers_.prefix_embed.Stop(stream_.get()));
+    prefix_embed_ = TrtEngine{};
+
+    RETURN_IF_ERROR(runtime::LoadEngine(&prefix_lm_));
+    RETURN_IF_ERROR(timers_.prefix_lm.Start(stream_.get()));
+    RETURN_IF_ERROR(runtime::RunStage(prefix_lm_, &prefix_lm_plan_, &prefix_lm_workspace_, stream_.get()));
+    RETURN_IF_ERROR(timers_.prefix_lm.Stop(stream_.get()));
+    prefix_lm_ = TrtEngine{};
+
+    status = RunSuffixLoopStage(suffix_step_, &timestep_, &dt_, &suffix_step_plan_, &suffix_step_workspace_,
+                                &x_t_buffers_, &timers_, suffix_x_t_input_index_, suffix_x_t_next_output_index_,
+                                stream_.get(), suffix_graph_exec_, result);
+    RETURN_IF_ERROR(timers_.prefix_embed.ElapsedMs(&result->prefix_embed_ms));
+    RETURN_IF_ERROR(timers_.prefix_lm.ElapsedMs(&result->prefix_lm_ms));
+  } else {
+    status = RunSplitDenoiseStages(prefix_embed_, prefix_lm_, suffix_step_, &x_t_buffers_, &timestep_, &dt_,
+                                   &prefix_embed_plan_, &prefix_lm_plan_, &suffix_step_plan_, &prefix_embed_workspace_,
+                                   &prefix_lm_workspace_, &suffix_step_workspace_, &timers_, suffix_x_t_input_index_,
+                                   suffix_x_t_next_output_index_, stream_.get(), suffix_graph_exec_, result);
+  }
   if (status.ok()) status = stream_.Synchronize();
   if (status.ok() && has_delay_input_) {
     status = PinRtcActionPrefix(request, &result->action);

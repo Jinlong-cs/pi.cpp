@@ -152,7 +152,7 @@ def _resize_with_pad(image: np.ndarray, height: int, width: int) -> np.ndarray:
 
 
 class Pi06HeterogeneousRunnerWrapper:
-    def __init__(self, model_dir: str | Path = DEFAULT_PI06_HETEROGENEOUS_MODEL_DIR) -> None:
+    def __init__(self, model_dir: str | Path = DEFAULT_PI06_HETEROGENEOUS_MODEL_DIR, resident: str = "all") -> None:
         self.model_dir = Path(model_dir)
         self.manifest_schema = PI06_HETEROGENEOUS_MANIFEST_SCHEMA
         manifest = json.loads((self.model_dir / PI06_HETEROGENEOUS_MANIFEST_PATH).read_text())
@@ -163,7 +163,7 @@ class Pi06HeterogeneousRunnerWrapper:
         self._norm_stats = self._load_norm_stats()
         self._tokenizer: sentencepiece.SentencePieceProcessor | None = None
         self._rng = np.random.default_rng(self.spec.noise_seed)
-        self._runner = picpp.Pi05OfflineRunner(self.engine_dir)
+        self._runner = picpp.Pi05OfflineRunner(self.engine_dir, residency=resident)
         self._runner.load()
         self._input_shapes = self._runner.input_shapes()
         self._validate_input_shapes()
@@ -565,8 +565,9 @@ class Pi06HeterogeneousRunnerWrapper:
 
 
 def build_pi06_heterogeneous_runner(
-    *, model_dir: str | Path | None = None
+    *, model_dir: str | Path | None = None, resident: str = "all"
 ) -> Pi06HeterogeneousRunnerWrapper:
     return Pi06HeterogeneousRunnerWrapper(
-        model_dir=DEFAULT_PI06_HETEROGENEOUS_MODEL_DIR if model_dir is None else Path(model_dir)
+        model_dir=DEFAULT_PI06_HETEROGENEOUS_MODEL_DIR if model_dir is None else Path(model_dir),
+        resident=resident,
     )

@@ -268,7 +268,17 @@ PYBIND11_MODULE(_native, m) {
       .def("to_dict", py::overload_cast<const pi_cpp::Pi05RunResult&>(&ResultToDict));
 
   py::class_<pi_cpp::Pi05OfflineRunner>(m, "Pi05OfflineRunner")
-      .def(py::init<std::filesystem::path>())
+      .def(py::init([](std::filesystem::path engine_dir, std::string residency) {
+             if (residency == "all") {
+               return std::make_unique<pi_cpp::Pi05OfflineRunner>(std::move(engine_dir));
+             }
+             if (residency == "sequential") {
+               return std::make_unique<pi_cpp::Pi05OfflineRunner>(std::move(engine_dir),
+                                                                  pi_cpp::SplitDenoiseResidency::kSequential);
+             }
+             throw std::invalid_argument("residency must be \"all\" or \"sequential\"");
+           }),
+           py::arg("engine_dir"), py::arg("residency") = "all")
       .def("load", [](pi_cpp::Pi05OfflineRunner& runner) {
         ThrowIfError(runner.Load());
       })
