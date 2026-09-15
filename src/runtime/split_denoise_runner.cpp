@@ -113,7 +113,7 @@ Status RunSuffixLoopStage(TrtEngine& suffix_step,
                           cudaStream_t stream,
                           cudaGraphExec_t suffix_graph_exec,
                           SplitDenoiseResult* result) {
-  RETURN_IF_ERROR(runtime::SetFloat32Scalar(*dt, pi05::kDefaultDt, stream));
+  RETURN_IF_ERROR(runtime::SetFloat32Scalar(dt, pi05::kDefaultDt, stream));
 
   DeviceTensor* current_x_t = &(*x_t_buffers)[0];
   DeviceTensor* next_x_t = &(*x_t_buffers)[1];
@@ -126,7 +126,7 @@ Status RunSuffixLoopStage(TrtEngine& suffix_step,
     RETURN_IF_ERROR(runtime::CheckCuda(cudaGraphLaunch(suffix_graph_exec, stream), "suffix CUDA-graph launch failed"));
   } else {
     for (int step = 0; step < pi05::kDefaultDenoiseSteps; ++step) {
-      RETURN_IF_ERROR(runtime::SetFloat32Scalar(*timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
+      RETURN_IF_ERROR(runtime::SetFloat32Scalar(timestep, 1.0F + static_cast<float>(step) * pi05::kDefaultDt, stream));
 
       suffix_step_plan->input_views[suffix_x_t_input_index] = current_x_t->view();
       suffix_step_workspace->output_views[suffix_x_t_next_output_index] = next_x_t->view();
