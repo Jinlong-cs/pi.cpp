@@ -13,6 +13,7 @@ from rich.traceback import install as install_rich_traceback
 from pi_cpp.commands.latency import run_latency
 from pi_cpp.commands.server import run_server
 from pi_cpp.commands.toolchain import BuildConfig, CalibrateConfig, GraphConfig
+from pi_cpp.commands.verify import VerifyConfig
 
 EvalModel = Literal["pi05", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "smolvla", "dit4dit", "groot", "starvla"]
 LatencyModel = Literal["pi05", "pi06_airbot", "pi06_heterogeneous", "pi06_rtc", "fastwam", "semanticvla", "evo1", "smolvla", "dit4dit", "groot", "starvla"]
@@ -77,6 +78,7 @@ Command = (
     | Annotated[BuildConfig, tyro.conf.subcommand(name="build")]
     | Annotated[ServerConfig, tyro.conf.subcommand(name="server")]
     | Annotated[ClientConfig, tyro.conf.subcommand(name="client")]
+    | Annotated[VerifyConfig, tyro.conf.subcommand(name="verify")]
 )
 
 
@@ -109,6 +111,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if isinstance(command, LatencyConfig):
         return run_latency(model=command.model, model_dir=command.model_dir, prompt=command.prompt, resident=command.resident)
+
+    if isinstance(command, VerifyConfig):
+        from pi_cpp.commands.verify import run_verify
+
+        return run_verify(command)
 
     if isinstance(command, (GraphConfig, CalibrateConfig, BuildConfig)):
         from pi_cpp.commands.toolchain import run_toolchain
